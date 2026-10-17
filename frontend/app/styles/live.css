@@ -98,6 +98,21 @@ textarea.lv-input { resize: vertical; min-height: 64px; }
   .b-P1 .ot-qty { width: auto; }
 }
 
+/* Lodestar Store desk on a tablet in landscape or a small laptop (900-1279 px): the design's top bar needs ~1300 px,
+   so the nav moves to a second row (brand, outlet, clock, bell and avatar keep the first); the frame grows with its
+   content (the page scrolls) so the taller bar never pushes content out of it; the order lines give the item name
+   room and let it wrap instead of cutting it. */
+@media (min-width: 900px) and (max-width: 1279px) {
+  .web-screen.b-P1 > .frame { height: auto !important; min-height: 100vh; }
+  .b-P1 .s-shell { min-height: 100vh; }
+  .b-P1 .s-top { flex-wrap: wrap; height: auto; padding: 8px 24px; row-gap: 4px; }
+  .b-P1 .s-top__nav { order: 10; flex: 1 1 100%; margin-left: 0; }
+  .b-P1 .ot-row { gap: 10px; padding: 0 14px; }
+  .b-P1 .ot-item { flex-wrap: wrap; white-space: normal; row-gap: 0; min-width: 64px; }
+  .b-P1 .ot-last { width: 44px; }
+  .b-P1 .ot-sug { width: 72px; }
+}
+
 /* Store desk tables (SM-02, SM-27, SM-28) at every width: a value longer than its column wraps instead of being cut. */
 .b-P1 :is(.wk-row, .sx-tr) .c { white-space: normal; overflow-wrap: break-word; flex-wrap: wrap; row-gap: 2px; }
 .b-P1 :is(.wk-row, .sx-tr) .c :is(span, b) { min-width: 0; }

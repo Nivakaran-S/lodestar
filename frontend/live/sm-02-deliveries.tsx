@@ -167,10 +167,15 @@ export default function LiveSm02Deliveries() {
   { refreshOn: STORE_EVENTS });
   const markRead = useAction<string, unknown>((c, id) => c.action('Notifications', id, 'MarkRead'), { onSuccess: () => void notes.refresh() });
 
-  // The delivery to show: the next one not yet delivered, else the latest.
+  // The delivery to show: the next one not yet delivered from today on, else the latest. A stop of a past run that
+  // was never closed is history, not "today's delivery".
   const sorted = useMemo(() => [...(stops.data ?? [])].sort((a, b) => String(a.etaPlan ?? '').localeCompare(String(b.etaPlan ?? ''))), [stops.data]);
-  const open = sorted.filter(s => s.status !== 'DELIVERED');
+  const todayIso = colomboDay();
+  const runDay = (s: TripStop) => (s.trip?.runDate ? String(s.trip.runDate).slice(0, 10) : s.etaPlan ? colomboDay(new Date(s.etaPlan)) : '');
+  const open = sorted.filter(s => s.status !== 'DELIVERED' && runDay(s) >= todayIso);
   const current = open[0] ?? sorted[sorted.length - 1];
+  const currentDay = current ? runDay(current) : '';
+  const heading = !current || current.status === 'DELIVERED' || currentDay < todayIso ? 'Latest delivery' : currentDay === todayIso ? "Today's delivery" : 'Next delivery';
   const sameRun = current ? sorted.filter(s => s.tripId === current.tripId && s.outletId === current.outletId) : [];
   // The receipt to count: the latest delivery that is in and not counted yet (a later run may already be planned),
   // else the receipt of the latest delivery that is in (confirmed).
@@ -207,7 +212,7 @@ export default function LiveSm02Deliveries() {
                 {trip && <><span className="m-sep" />{` ${vans} van${vans === 1 ? '' : 's'} `}</>}
                 {current && <><span className="m-sep" />{` live from ${hub}`}</>}
               </div>
-              <div className="d-h1">{current?.status === 'DELIVERED' ? 'Latest delivery' : "Today's delivery"}</div>
+              <div className="d-h1">{heading}</div>
             </div>
             {trip && <span className={`m-pill ${PILL[trip.status === 'ENROUTE' ? 'ENROUTE' : trip.status === 'COMPLETE' ? 'DELIVERED' : 'LOADED'][0]}`}><span className="dot" />{trip.status === 'LOADING' ? `Loading at ${hub}` : title(trip.status)}{trip.bay ? ` · Bay ${trip.bay}` : ''}</span>}
           </div>

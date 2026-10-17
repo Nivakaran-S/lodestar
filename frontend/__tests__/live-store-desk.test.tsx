@@ -276,11 +276,22 @@ describe('SM-02 Deliveries', () => {
         : req.path === 'Orders' ? page([o]) : page([])),
     });
     expect(await screen.findByTestId('eta')).toHaveTextContent('6:20–6:50');
-    expect(screen.getByText("Today's delivery")).toBeInTheDocument();
+    expect(screen.getByText('Next delivery')).toBeInTheDocument(); // Tue 7 Apr's run, seen on Mon 6 Apr
     expect(screen.getByText(/At risk for your 08:00 window · late risk 45%/)).toBeInTheDocument();
     expect(screen.getByText(/departs ~5:00/)).toBeInTheDocument();
     expect(screen.getByText('12 units in this delivery')).toBeInTheDocument();
     expect(view.calls.find(c => c.path === 'TripStops')!.query).toMatchObject({ $filter: "outletId eq 'OUTT01'", $expand: 'trip,order,pod', $orderby: 'etaPlan desc' });
+  });
+
+  it('a past run never closed is the latest delivery, not today’s; today’s run is', async () => {
+    const o = order('ORDT1', { status: 'ENROUTE', units: 12, unitsReceived: null });
+    const past = (id: string) => stop(id, o, { etaPlan: '2026-03-30T00:45:00.000Z', trip: { id: 'TRP', vehicleId: 'VEH057', status: 'PLANNED', runDate: '2026-03-30T00:00:00.000Z' } });
+    const { unmount } = renderLive(<Deliveries />, { session: SESSIONS.store, handler: req => storeBase(req) ?? (req.path === 'TripStops' ? page([past('STP')]) : page([])) });
+    expect(await screen.findByText('Latest delivery')).toBeInTheDocument();
+    unmount();
+    const today = stop('STT', o, { etaPlan: '2026-04-06T09:00:00.000Z', trip: { id: 'TRT1', vehicleId: 'VEH057', status: 'ENROUTE', runDate: '2026-04-06T00:00:00.000Z' } });
+    renderLive(<Deliveries />, { session: SESSIONS.store, handler: req => storeBase(req) ?? (req.path === 'TripStops' ? page([past('STP'), today]) : page([])) });
+    expect(await screen.findByText("Today's delivery")).toBeInTheDocument();
   });
 
   it('“Got it” marks the notice read and reloads the notices', async () => {
