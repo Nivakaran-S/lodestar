@@ -44,7 +44,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  REGISTRY: ghcr.io/adagard-trios
+  REGISTRY: ghcr.io/nivakaran-s
 
 jobs:
   # ------------------------------------------------------------------ the quality gate (PRs and main)

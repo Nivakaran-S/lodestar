@@ -3,7 +3,7 @@
 #
 # This file holds only the image tags. CI (GitHub Actions, .github/workflows/deploy-demo.yml, job `release`)
 # rewrites it on every green main build with
-# `kustomize edit set image lodestar-<svc>=ghcr.io/adagard-trios/lodestar-<svc>:<commit sha>` for every image
+# `kustomize edit set image lodestar-<svc>=ghcr.io/nivakaran-s/lodestar-<svc>:<commit sha>` for every image
 # listed below, and commits it with [skip ci]; `kustomize edit` reformats this file, so keep the rest in platform/.
 # The names on the left are lodestar-<svc> because overlays/local has already renamed lodestar/<svc>.
 #
@@ -16,50 +16,50 @@ resources:
 - platform
 images:
 - name: lodestar-agent
-  newName: ghcr.io/adagard-trios/lodestar-agent
+  newName: ghcr.io/nivakaran-s/lodestar-agent
   newTag: 8e8106ca7ee9059cfe839ddb4320e51ed85d75f5
 - name: lodestar-audit
-  newName: ghcr.io/adagard-trios/lodestar-audit
+  newName: ghcr.io/nivakaran-s/lodestar-audit
   newTag: 8e8106ca7ee9059cfe839ddb4320e51ed85d75f5
 - name: lodestar-auth
-  newName: ghcr.io/adagard-trios/lodestar-auth
+  newName: ghcr.io/nivakaran-s/lodestar-auth
   newTag: 8e8106ca7ee9059cfe839ddb4320e51ed85d75f5
 - name: lodestar-fleet
-  newName: ghcr.io/adagard-trios/lodestar-fleet
+  newName: ghcr.io/nivakaran-s/lodestar-fleet
   newTag: 8e8106ca7ee9059cfe839ddb4320e51ed85d75f5
 - name: lodestar-frontend
-  newName: ghcr.io/adagard-trios/lodestar-frontend
+  newName: ghcr.io/nivakaran-s/lodestar-frontend
   newTag: 8e8106ca7ee9059cfe839ddb4320e51ed85d75f5
 - name: lodestar-gateway
-  newName: ghcr.io/adagard-trios/lodestar-gateway
+  newName: ghcr.io/nivakaran-s/lodestar-gateway
   newTag: 8e8106ca7ee9059cfe839ddb4320e51ed85d75f5
 - name: lodestar-identity
-  newName: ghcr.io/adagard-trios/lodestar-identity
+  newName: ghcr.io/nivakaran-s/lodestar-identity
   newTag: 8e8106ca7ee9059cfe839ddb4320e51ed85d75f5
 - name: lodestar-migrate
-  newName: ghcr.io/adagard-trios/lodestar-migrate
+  newName: ghcr.io/nivakaran-s/lodestar-migrate
   newTag: 8e8106ca7ee9059cfe839ddb4320e51ed85d75f5
 - name: lodestar-mobile-web
-  newName: ghcr.io/adagard-trios/lodestar-mobile-web
+  newName: ghcr.io/nivakaran-s/lodestar-mobile-web
   newTag: 8e8106ca7ee9059cfe839ddb4320e51ed85d75f5
 - name: lodestar-notifications
-  newName: ghcr.io/adagard-trios/lodestar-notifications
+  newName: ghcr.io/nivakaran-s/lodestar-notifications
   newTag: 8e8106ca7ee9059cfe839ddb4320e51ed85d75f5
 - name: lodestar-ocr
-  newName: ghcr.io/adagard-trios/lodestar-ocr
+  newName: ghcr.io/nivakaran-s/lodestar-ocr
   newTag: 8e8106ca7ee9059cfe839ddb4320e51ed85d75f5
 - name: lodestar-orders
-  newName: ghcr.io/adagard-trios/lodestar-orders
+  newName: ghcr.io/nivakaran-s/lodestar-orders
   newTag: 8e8106ca7ee9059cfe839ddb4320e51ed85d75f5
 - name: lodestar-outlets
-  newName: ghcr.io/adagard-trios/lodestar-outlets
+  newName: ghcr.io/nivakaran-s/lodestar-outlets
   newTag: 8e8106ca7ee9059cfe839ddb4320e51ed85d75f5
 - name: lodestar-planning
-  newName: ghcr.io/adagard-trios/lodestar-planning
+  newName: ghcr.io/nivakaran-s/lodestar-planning
   newTag: 8e8106ca7ee9059cfe839ddb4320e51ed85d75f5
 - name: lodestar-sync
-  newName: ghcr.io/adagard-trios/lodestar-sync
+  newName: ghcr.io/nivakaran-s/lodestar-sync
   newTag: 8e8106ca7ee9059cfe839ddb4320e51ed85d75f5
 - name: lodestar-trips
-  newName: ghcr.io/adagard-trios/lodestar-trips
+  newName: ghcr.io/nivakaran-s/lodestar-trips
   newTag: 8e8106ca7ee9059cfe839ddb4320e51ed85d75f5

@@ -255,7 +255,7 @@ Jenkins (`Jenkinsfile`) is not on the live path; it is kept for reference only. 
 |---|---|---|
 | `checks` | PRs and `main` | `node tools/docs/erd.mjs --check`; backend lint, typecheck, `jest --ci --coverage`, integration tests against a `postgres:16` service container (`npm run test:int`); frontend lint, typecheck, Jest; mobile `tsc`, Jest; agent pytest (coverage.xml); OCR pytest; coverage uploaded as the `coverage` artifact; SonarQube Cloud scan with `sonar.qualitygate.wait=true` when `SONAR_TOKEN` is set |
 | `changes` | `main` | `deploy/azure-demo/changed-images.sh`: which images the push needs rebuilt |
-| `build` | `main`, after `checks` | matrix, one image per runner, pushed to `ghcr.io/adagard-trios/lodestar-<svc>` with tags `main` and the commit SHA |
+| `build` | `main`, after `checks` | matrix, one image per runner, pushed to `ghcr.io/nivakaran-s/lodestar-<svc>` with tags `main` and the commit SHA |
 | `release` | `main`, after `build` | images that were not rebuilt get `:<sha>` as an alias of `:main`; `kustomize edit set image` for every image the demo overlay lists; render guard; commit `deploy: demo → <sha7> [skip ci]` pushed with `GITHUB_TOKEN` |
 
 Loops: the bump commit says `[skip ci]` (GitHub skips it), pushes made with `GITHUB_TOKEN` never start a workflow, and every job also skips a head commit that contains `[skip ci]`. PR runs never count as deployable: `autodeploy.sh` ignores runs whose event is `pull_request`.

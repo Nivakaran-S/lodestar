@@ -24,7 +24,7 @@ locals {
     project     = var.project
     environment = var.environment
     managed-by  = "terraform"
-    repo        = "Adagard-Trios/Lodestar"
+    repo        = "Nivakaran-S/lodestar"
     owner       = var.owner
     cost-center = var.cost_center
   }, var.extra_tags)

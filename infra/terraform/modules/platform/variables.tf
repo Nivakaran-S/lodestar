@@ -319,7 +319,7 @@ variable "argocd_chart_version" {
 
 variable "git_repo_url" {
   type    = string
-  default = "https://github.com/Adagard-Trios/Lodestar.git"
+  default = "https://github.com/Nivakaran-S/lodestar.git"
 }
 
 variable "git_target_revision" {

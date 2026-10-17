@@ -7,7 +7,7 @@ kind: Component
 configMapGenerator:
 - name: argocd-repo
   literals:
-  - url=https://github.com/Adagard-Trios/Lodestar.git
+  - url=https://github.com/Nivakaran-S/lodestar.git
   options:
     disableNameSuffixHash: true
     annotations:

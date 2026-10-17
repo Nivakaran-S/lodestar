@@ -7,7 +7,7 @@ The repository URL is written once, in [`repo/kustomization.yaml`](repo/kustomiz
 ## Demo on k3s
 
 ```
-GitHub main ──▶ GitHub Actions deploy-demo: checks ─▶ changed images → ghcr.io/adagard-trios/lodestar-<svc>:<sha>
+GitHub main ──▶ GitHub Actions deploy-demo: checks ─▶ changed images → ghcr.io/nivakaran-s/lodestar-<svc>:<sha>
                                                  ─▶ release: every overlay image at :<sha>, kustomize edit set image
                                                     in deploy/k8s/overlays/demo, commit [skip ci]
 Argo CD core (k3s on the VM) polls main ──▶ Sync: Postgres, then the migrate Job (hook), then the services
@@ -66,7 +66,7 @@ The steps below run **on the VM** (`ssh lodestar@<fqdn>`), from `/opt/lodestar`.
 mkdir -p ~/.kube && sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config && sudo chown "$USER" ~/.kube/config && chmod 600 ~/.kube/config
 kubectl get nodes                                   # one node, Ready
 curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-cd /opt/lodestar && git remote set-url origin https://github.com/Adagard-Trios/Lodestar.git && git pull
+cd /opt/lodestar && git remote set-url origin https://github.com/Nivakaran-S/lodestar.git && git pull
 ```
 
 ### 2. cert-manager and the Let's Encrypt issuers
@@ -157,7 +157,7 @@ argocd app sync lodestar-demo                       # sync now instead of waitin
 
   ```bash
   kubectl -n argocd create secret generic repo-lodestar \
-    --from-literal=type=git --from-literal=url=https://github.com/Adagard-Trios/Lodestar.git \
+    --from-literal=type=git --from-literal=url=https://github.com/Nivakaran-S/lodestar.git \
     --from-literal=username=<github user> --from-literal=password=<fine-grained token, contents:read>
   kubectl -n argocd label secret repo-lodestar argocd.argoproj.io/secret-type=repository
   ```
@@ -327,7 +327,7 @@ The Jenkins service principal needs `AcrPush` on the registry (Terraform grants 
 
 ### What Argo CD needs (AKS)
 
-- Repo `https://github.com/Adagard-Trios/Lodestar.git` (set once in `deploy/argocd/repo`), branch `main`. Paths: `deploy/argocd/envs/<env>` (root) and `deploy/k8s/overlays/<env>` (workloads).
+- Repo `https://github.com/Nivakaran-S/lodestar.git` (set once in `deploy/argocd/repo`), branch `main`. Paths: `deploy/argocd/envs/<env>` (root) and `deploy/k8s/overlays/<env>` (workloads).
 - For a private repo, the secret `argocd/repo-lodestar` (label `argocd.argoproj.io/secret-type: repository`), created by Terraform from `TF_VAR_git_repo_password`.
 - No registry credentials: nodes pull from ACR with the kubelet identity (`AcrPull`).
 - No application secrets: pods read Key Vault through the CSI driver with their own workload identity.

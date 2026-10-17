@@ -3,7 +3,7 @@ locals {
     project    = var.project
     component  = "tfstate"
     managed-by = "terraform"
-    repo       = "Adagard-Trios/Lodestar"
+    repo       = "Nivakaran-S/lodestar"
   }, var.tags)
 }
 

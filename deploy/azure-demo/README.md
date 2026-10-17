@@ -52,7 +52,7 @@ SSH is open only to `ssh_source_cidr`. If your public address changes, update it
 ```bash
 ssh lodestar@<fqdn>
 cd /opt/lodestar
-git clone https://github.com/Adagard-Trios/Lodestar.git .
+git clone https://github.com/Nivakaran-S/lodestar.git .
 # the personas' passwords are published in the README for the judges: choose them here
 LODESTAR_DEMO_PASSWORD='<persona password>' LODESTAR_ADMIN_PASSWORD='<admin password>' \
   deploy/azure-demo/make-env.sh <fqdn> <you@example.com>
@@ -64,7 +64,7 @@ deploy/azure-demo/up.sh
 `make-env.sh` writes `.env` with random secrets for Postgres, Redis, Keycloak and every service client. `up.sh` refuses to start if any value is missing or still a dev default. It starts the stack with [`compose.prod.yml`](compose.prod.yml) and waits until the start page, the API and Keycloak answer.
 
 Where the images come from:
-- **Pulled (preferred, nothing is compiled on the VM):** add `REGISTRY=ghcr.io/adagard-trios` and `TAG=<commit SHA>` to `.env`. CI (GitHub Actions, `.github/workflows/deploy-demo.yml`) pushes the changed images with that tag on every green `main` build (the `release` job gives the unchanged ones the same tag). The GHCR packages must be public, or run `docker login ghcr.io` on the VM with a `read:packages` token.
+- **Pulled (preferred, nothing is compiled on the VM):** add `REGISTRY=ghcr.io/nivakaran-s` and `TAG=<commit SHA>` to `.env`. CI (GitHub Actions, `.github/workflows/deploy-demo.yml`) pushes the changed images with that tag on every green `main` build (the `release` job gives the unchanged ones the same tag). The GHCR packages must be public, or run `docker login ghcr.io` on the VM with a `read:packages` token.
 - **Built on the VM (no registry):** leave `REGISTRY` empty. `up.sh` builds one image at a time, because parallel Next.js and Nest builds do not fit in 4 GiB; the first build takes a while, later ones reuse the layer cache. Use `os_disk_size_gb = 64` for the build cache.
 
 The production override:

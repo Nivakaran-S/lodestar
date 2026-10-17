@@ -82,7 +82,7 @@ Notes:
 kubectl kustomize --load-restrictor LoadRestrictionsNone deploy/k8s/overlays/demo   # render, no cluster needed
 ```
 
-- **Builds on `overlays/local`**, so images arrive renamed to `lodestar-<svc>`. `overlays/demo/kustomization.yaml` maps them to `ghcr.io/adagard-trios/lodestar-<svc>:<commit sha>`. CI's `gitops-bump` job rewrites only that file, with `kustomize edit set image lodestar-<svc>=...`.
+- **Builds on `overlays/local`**, so images arrive renamed to `lodestar-<svc>`. `overlays/demo/kustomization.yaml` maps them to `ghcr.io/nivakaran-s/lodestar-<svc>:<commit sha>`. CI's `gitops-bump` job rewrites only that file, with `kustomize edit set image lodestar-<svc>=...`.
 - **No Secret in git.** The dev-only Secrets of `overlays/local` are deleted. `deploy/azure-demo/k3s-secrets.sh` creates the real ones on the VM, with the same names, from the VM's `.env`, plus the optional `lodestar-data` ConfigMap with the competition CSVs.
 - **One node, 2 vCPU.** No KEDA ScaledObjects and no HPAs; one replica each; small requests; no node-pool selectors or zone spread. PDBs, PriorityClasses, quota and LimitRange stay.
 - **Order of a sync.** Config and accounts (wave -2), then Postgres and the migrate Job (a Sync hook, re-run on every sync; the seed is idempotent), then everything else.
