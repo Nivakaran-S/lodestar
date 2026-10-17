@@ -123,6 +123,13 @@ resource "azurerm_linux_virtual_machine" "vm" {
     sku       = "server"
     version   = "latest"
   }
+
+  # Azure never returns custom_data, so after a `terraform import` (moving the VM between subscriptions)
+  # Terraform would replace the VM to "restore" it. cloud-init only runs on first boot anyway; a new VM
+  # with different cloud-init (e.g. install_k3s) needs `terraform apply -replace=azurerm_linux_virtual_machine.vm`.
+  lifecycle {
+    ignore_changes = [custom_data]
+  }
 }
 
 # Two budgets, because the student credit is one $100 pot while Azure budgets reset on their time grain:
