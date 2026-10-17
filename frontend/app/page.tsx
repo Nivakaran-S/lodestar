@@ -26,23 +26,23 @@ type Role = {
 const ROLES: Role[] = [
   {
     key: "store", face: "Lodestar Store", role: "Store manager", text: "Place tomorrow's order before 4 PM, follow the arrival time, confirm what arrived.",
-    href: "/store/sm-26-sign-in", persona: "fathima", color: "#047857", device: "Desktop or phone",
+    href: "/store/sm-26-sign-in", persona: "77 456 7890 + code", color: "#047857", device: "Desktop or phone",
     icon: <><path d="M3 9l1.5-5h15L21 9" /><path d="M3 9h18v2a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0z" /><path d="M5 13v8h14v-8M10 21v-5h4v5" /></>,
     also: { label: "Phone app", href: "/field/s/sm-05-sign-in" },
   },
   {
     key: "plan", face: "Lodestar Plan", role: "Dispatcher", text: "Allocate orders to vehicles and trips with the planning agent, explain every deferral, watch the run live.",
-    href: "/plan/dsp-06-sign-in", persona: "nilanthi", color: "#3B4CCA", device: "Planning office",
+    href: "/plan/dsp-06-sign-in", persona: "nilanthi@waypoint.lk", color: "#3B4CCA", device: "Planning office",
     icon: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
   },
   {
     key: "dock", face: "Lodestar Dock", role: "Loader", text: "Load in reverse stop order, flag short or damaged items, release the vehicle with its seal.",
-    href: "/field/s/ld-06-sign-in", persona: "kasun", color: "#6D28D9", device: "Phone or dock tablet",
+    href: "/field/s/ld-06-sign-in", persona: "KDY-0427 · PIN 2468", color: "#6D28D9", device: "Phone or dock tablet",
     icon: <><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><path d="M3.3 7 12 12l8.7-5M12 22V12" /></>,
   },
   {
     key: "run", face: "Lodestar Run", role: "Driver", text: "Follow the route and record every stop with proof of delivery, even with no signal.",
-    href: "/field/s/dr-06-sign-in", persona: "ruwan", color: "#0369A1", device: "Phone, works offline",
+    href: "/field/s/dr-06-sign-in", persona: "77 345 6789 + code", color: "#0369A1", device: "Phone, works offline",
     icon: <path d="m3 11 19-9-9 19-2-8-8-2z" />,
   },
 ];
@@ -121,7 +121,7 @@ function RoleCard({ r, compact = false }: { r: Role; compact?: boolean }) {
       </Go>
       <p className="hm-card__desc">{r.text}</p>
       <div className="hm-card__foot">
-        <span className="hm-card__persona">Sign in as <code>{r.persona}</code></span>
+        <span className="hm-card__persona">Sign in with <code>{r.persona}</code></span>
         <span className="hm-card__actions">
           {r.also && <Go href={r.also.href} className="hm-card__also">{r.also.label}</Go>}
           <Go href={r.href} className="hm-card__cta">Open <span aria-hidden="true">→</span></Go>
@@ -226,7 +226,7 @@ export default function Home() {
         <div className="hm-wrap hm-foot__row">
           <p>
             {personaPassword
-              ? <>Demo accounts <code>fathima</code> <code>nilanthi</code> <code>kasun</code> <code>ruwan</code>, password <code>{personaPassword}</code>{adminPassword && <> · admin <code>{adminPassword}</code></>}. </>
+              ? <>Store and driver: the code is shown on screen. Dispatcher password <code>{personaPassword}</code>{adminPassword && <> · admin <code>{adminPassword}</code></>}. </>
               : <>The demo accounts and passwords are in the README. </>}
             Waypoint Group is fictional and all data is synthetic.
           </p>

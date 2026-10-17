@@ -13,7 +13,7 @@ import { useClaims } from '@/model/hooks';
 import { useDepots } from '@/model/depots';
 import { s as bay, X2 } from '@/live/ld-21-bay-overview';
 
-const NAMES = new Map(FACES.filter(f => f.app === 'dock').flatMap(f => f.screens.map(e => [e.key, e.name.replace(/^LD-\w+\s+/, '')] as const)));
+const NAMES = new Map(FACES.filter(f => f.app === 'dock').flatMap(f => f.screens.map(e => [e.key, e.name.replace(/^LD-\w+\s+/, '').replace(/ tab$/, '')] as const)));
 
 const TABS = [
   { label: 'Bays', to: 'ld-21-bay-overview', keys: ['ld-01-dock-queue', 'ld-21-bay-overview', 'ld-19-empty-queue'] },

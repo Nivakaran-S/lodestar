@@ -44,27 +44,30 @@ export default function ScreenLd13FlagsTab() {
   return (
     <Frame bg="#f2f4f8" nav={nav} style={s.v0}>
       <View style={s.v50}>
-        <View style={s.v11}>
-          <View style={s.v2}>
-            <Icon xml={X0} width={36} height={36} style={s.v1} />
-          </View>
-          <View style={s.v4}>
-            <Text style={s.t3}>{"Flags"}</Text>
-          </View>
-          <Tap style={s.v10} to={null} onPress={() => signOutTo('ld-06-sign-in')} testID="switch-user">
-            <View style={s.v6}>
-              <Text style={s.t5}>{initials(name) || "—"}</Text>
+        {/* the Dock desktop shell has its own header (depot, title, user chip) */}
+        <PhoneOnly>
+          <View style={s.v11}>
+            <View style={s.v2}>
+              <Icon xml={X0} width={36} height={36} style={s.v1} />
             </View>
-            <View style={s.v9}>
-              <View>
-                <Text style={s.t7} numberOfLines={1}>{name ?? "Not signed in"}</Text>
-              </View>
-              <View>
-                <Text style={s.t8} numberOfLines={1}>{"Switch user"}</Text>
-              </View>
+            <View style={s.v4}>
+              <Text style={s.t3}>{"Flags"}</Text>
             </View>
-          </Tap>
-        </View>
+            <Tap style={s.v10} to={null} onPress={() => signOutTo('ld-06-sign-in')} testID="switch-user">
+              <View style={s.v6}>
+                <Text style={s.t5}>{initials(name) || "—"}</Text>
+              </View>
+              <View style={s.v9}>
+                <View>
+                  <Text style={s.t7} numberOfLines={1}>{name ?? "Not signed in"}</Text>
+                </View>
+                <View>
+                  <Text style={s.t8} numberOfLines={1}>{"Switch user"}</Text>
+                </View>
+              </View>
+            </Tap>
+          </View>
+        </PhoneOnly>
         <Scroll style={s.v4} contentStyle={s.v46}>
           <Tap lk="L203" style={s.v20} to={next ? { to: "ld-03-flag-shortfall", params: { trip: next.id } } : undefined}>
             <View>

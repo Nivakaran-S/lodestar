@@ -3,7 +3,7 @@
 // live counts and the signed-in user. The sidebar items keep the design's data-lk codes (N0, N1, …), which
 // ScreenShell resolves through the screen's own link table, so navigation is exactly the prototype's.
 import { useRouter } from 'next/navigation';
-import { type ReactNode, useEffect, useRef, useSyncExternalStore } from 'react';
+import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { initials } from '@/lib/auth/session';
 import { BRAND_LETTER, dayFilter, fmtDay, fmtTime } from '@/lib/format';
@@ -235,6 +235,10 @@ export function AdminSide({ active }: { active: string }) {
   );
 }
 
+const STORE_LOGO = (
+  <svg viewBox="0 0 32 32" aria-hidden><rect width="32" height="32" rx="8" fill="#047857" /><g transform="translate(7.36 7.36) scale(0.72)" fill="none" stroke="#FFFFFF" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l1.5-5h15L21 9" /><path d="M3 9h18v2a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0z" /><path d="M5 13v8h14v-8M10 21v-5h4v5" /></g></svg>
+);
+
 const STORE_NAV: Array<{ key: string; icon: IconName; label: string; href: string }> = [
   // the design's "Order" tab opens Orders & history (SM-27), where "New order" starts SM-01
   { key: 'order', icon: 'plus', label: 'Order', href: '/store/sm-27-orders-and-history' },
@@ -257,33 +261,62 @@ export function StoreTop({ active, avatarLk, extra }: { active: string; avatarLk
   const unread = useCount('Notifications', 'readAt eq null', ['notification', 'credit_note_issued', 'eta_update', 'plan_published', 'trip_released']);
   const now = useNow();
   const o = outlet.data;
+  // below 900 px the nav and the outlet move into a side drawer opened from the menu button (app/styles/live.css)
+  const [open, setOpen] = useState(false);
+  const burger = useRef<HTMLButtonElement | null>(null);
+  const drawer = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    drawer.current?.querySelector<HTMLElement>('[tabindex="0"], button')?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); setOpen(false); burger.current?.focus(); } };
+    const mq = typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 900px)') : null;
+    const onWide = () => { if (mq?.matches) setOpen(false); };
+    document.addEventListener('keydown', onKey);
+    mq?.addEventListener('change', onWide);
+    return () => { document.removeEventListener('keydown', onKey); mq?.removeEventListener('change', onWide); };
+  }, [open]);
+  const go = (href: string) => { setOpen(false); router.push(href); };
+  const outletChip = (
+    <div className="s-top__outlet">
+      <span className={`bb bb--${(o?.brand ?? 'FRESH').toLowerCase()}`}>{BRAND_LETTER[o?.brand ?? 'FRESH']}</span>
+      {o?.name ?? (outlet.loading ? 'Loading outlet…' : 'Your outlet')}
+      <span className="id">{session?.outletId}</span>
+    </div>
+  );
+  const items = STORE_NAV.map(n => (
+    <span
+      key={n.key}
+      className={`s-top__i${n.key === active ? ' is-on' : ' lv-click'}`}
+      role={n.key === active ? undefined : 'link'}
+      tabIndex={n.key === active ? undefined : 0}
+      aria-current={n.key === active ? 'page' : undefined}
+      onClick={n.key === active ? () => setOpen(false) : e => { e.stopPropagation(); go(n.href); }}
+      onKeyDown={n.key === active ? undefined : e => { if (e.key === 'Enter') go(n.href); }}
+    >
+      <Ic n={n.icon} />
+      {n.label}
+      {n.key === 'messages' && unread ? <span className="s-top__count">{unread}</span> : null}
+    </span>
+  ));
   return (
     <div className="s-top">
+      <button
+        ref={burger}
+        type="button"
+        className="s-burger"
+        aria-label={open ? 'Close navigation' : 'Open navigation'}
+        aria-expanded={open}
+        aria-controls="store-nav"
+        onClick={e => { e.stopPropagation(); setOpen(v => !v); }}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+      </button>
       <div className="s-top__brand">
-        <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#047857" /><g transform="translate(7.36 7.36) scale(0.72)" fill="none" stroke="#FFFFFF" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l1.5-5h15L21 9" /><path d="M3 9h18v2a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0z" /><path d="M5 13v8h14v-8M10 21v-5h4v5" /></g></svg>
+        {STORE_LOGO}
         Lodestar Store
       </div>
-      <div className="s-top__outlet">
-        <span className={`bb bb--${(o?.brand ?? 'FRESH').toLowerCase()}`}>{BRAND_LETTER[o?.brand ?? 'FRESH']}</span>
-        {o?.name ?? (outlet.loading ? 'Loading outlet…' : 'Your outlet')}
-        <span className="id">{session?.outletId}</span>
-      </div>
-      <div className="s-top__nav">
-        {STORE_NAV.map(n => (
-          <span
-            key={n.key}
-            className={`s-top__i${n.key === active ? ' is-on' : ' lv-click'}`}
-            role={n.key === active ? undefined : 'link'}
-            tabIndex={n.key === active ? undefined : 0}
-            onClick={n.key === active ? undefined : e => { e.stopPropagation(); router.push(n.href); }}
-            onKeyDown={n.key === active ? undefined : e => { if (e.key === 'Enter') router.push(n.href); }}
-          >
-            <Ic n={n.icon} />
-            {n.label}
-            {n.key === 'messages' && unread ? <span className="s-top__count">{unread}</span> : null}
-          </span>
-        ))}
-      </div>
+      {outletChip}
+      <div className="s-top__nav">{items}</div>
       <div className="spacer" />
       {extra}
       <span className="s-top__clock">{fmtDay(new Date(now))} · {fmtTime(new Date(now))}</span>
@@ -291,6 +324,20 @@ export function StoreTop({ active, avatarLk, extra }: { active: string; avatarLk
         <Ic n="log-in" />
       </div>
       <span className="d-avatar" {...(avatarLk ? { 'data-lk': avatarLk } : {})} title={session?.name}>{initials(session?.name ?? '')}</span>
+      {open && <div className="s-backdrop" aria-hidden onClick={e => { e.stopPropagation(); setOpen(false); }} />}
+      <aside id="store-nav" ref={drawer} className={`s-drawer${open ? ' is-open' : ''}`} aria-label="Lodestar Store navigation">
+        <div className="s-top__brand">{STORE_LOGO}Lodestar Store</div>
+        {outletChip}
+        <nav className="s-drawer__nav">{items}</nav>
+        <div className="spacer" />
+        <div className="s-drawer__foot">
+          <span className="d-avatar">{initials(session?.name ?? '')}</span>
+          <div className="vstack" style={{ gap: '2px', minWidth: 0 }}>
+            <b>{session?.name}</b>
+            <span className="lv-link" role="button" tabIndex={0} onClick={e => { e.stopPropagation(); void logout(); }} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); void logout(); } }}>{"Sign out"}</span>
+          </div>
+        </div>
+      </aside>
     </div>
   );
 }

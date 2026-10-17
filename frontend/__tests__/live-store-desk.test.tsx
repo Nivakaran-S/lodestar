@@ -288,10 +288,32 @@ describe('SM-02 Deliveries', () => {
     const past = (id: string) => stop(id, o, { etaPlan: '2026-03-30T00:45:00.000Z', trip: { id: 'TRP', vehicleId: 'VEH057', status: 'PLANNED', runDate: '2026-03-30T00:00:00.000Z' } });
     const { unmount } = renderLive(<Deliveries />, { session: SESSIONS.store, handler: req => storeBase(req) ?? (req.path === 'TripStops' ? page([past('STP')]) : page([])) });
     expect(await screen.findByText('Latest delivery')).toBeInTheDocument();
+    // its ETA, departure and late risk are history: no live forecast, no "now" on the thread
+    expect(screen.getByText(/Planned arrival/)).toBeInTheDocument();
+    expect(screen.getByText(/never closed/)).toBeInTheDocument();
+    expect(screen.queryByText(/departs ~/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/late risk/)).not.toBeInTheDocument();
+    expect(screen.queryByText('now')).not.toBeInTheDocument();
     unmount();
     const today = stop('STT', o, { etaPlan: '2026-04-06T09:00:00.000Z', trip: { id: 'TRT1', vehicleId: 'VEH057', status: 'ENROUTE', runDate: '2026-04-06T00:00:00.000Z' } });
     renderLive(<Deliveries />, { session: SESSIONS.store, handler: req => storeBase(req) ?? (req.path === 'TripStops' ? page([past('STP'), today]) : page([])) });
     expect(await screen.findByText("Today's delivery")).toBeInTheDocument();
+  });
+
+  it('the top bar’s menu button opens the nav in a side drawer; Escape and the backdrop close it', async () => {
+    renderLive(<Deliveries />, { session: SESSIONS.store, handler: req => storeBase(req) ?? page([]) });
+    const menu = await screen.findByRole('button', { name: 'Open navigation' });
+    const drawer = screen.getByRole('complementary', { name: 'Lodestar Store navigation' });
+    expect(drawer).not.toHaveClass('is-open');
+    fireEvent.click(menu);
+    expect(drawer).toHaveClass('is-open');
+    expect(menu).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(drawer).not.toHaveClass('is-open');
+    fireEvent.click(menu);
+    fireEvent.click(within(drawer).getByRole('link', { name: /Receipts/ }));
+    expect(router.push).toHaveBeenCalledWith('/store/sm-28-receipts-and-credit-notes');
+    expect(drawer).not.toHaveClass('is-open');
   });
 
   it('“Got it” marks the notice read and reloads the notices', async () => {

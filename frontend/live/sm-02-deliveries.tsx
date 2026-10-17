@@ -126,7 +126,7 @@ function ReceiptCard({ stops, onDone, hub }: { stops: TripStop[]; onDone: () => 
   );
 }
 
-function Thread({ order, stop, trip }: { order: Order; stop?: TripStop; trip?: Trip }) {
+function Thread({ order, stop, trip, stale = false }: { order: Order; stop?: TripStop; trip?: Trip; stale?: boolean }) {
   const at = Math.max(0, STEPS.indexOf(order.status === 'DEFERRED' || order.status === 'EXCEPTION' ? 'PLANNED' : order.status));
   const times = [fmtDay(order.orderedAt), order.status === 'RECEIVED' ? '' : 'planned', trip?.bay ? `bay ${trip.bay}` : '', trip?.departTime ? fmtClock(trip.departTime) : '', stop?.arrivalActual ? fmtClock(stop.arrivalActual) : stop?.etaModelBandEarly ? `${fmtClock(stop.etaModelBandEarly)}–${fmtClock(stop.etaModelBandLate)}` : ''];
   return (
@@ -138,7 +138,7 @@ function Thread({ order, stop, trip }: { order: Order; stop?: TripStop; trip?: T
           <div key={st} className={`thread__step ${done ? 'is-done' : now ? 'is-now' : ''}`}>
             <div className="thread__node">{done ? <Ic n="check" /> : now ? <Ic n="box" /> : null}</div>
             <div className="thread__label">{['Received', 'Planned', 'Loading', 'En route', 'Delivered'][i]}</div>
-            <div className="thread__time">{now ? 'now' : times[i]}</div>
+            <div className="thread__time">{now && !stale ? 'now' : times[i]}</div>
           </div>
         );
         return i < STEPS.length - 1 ? [step, <div key={`${st}-bar`} className={`thread__bar${i < at || order.status === 'DELIVERED' ? ' is-done' : ''}`} />] : [step];
@@ -176,6 +176,8 @@ export default function LiveSm02Deliveries() {
   const current = open[0] ?? sorted[sorted.length - 1];
   const currentDay = current ? runDay(current) : '';
   const heading = !current || current.status === 'DELIVERED' || currentDay < todayIso ? 'Latest delivery' : currentDay === todayIso ? "Today's delivery" : 'Next delivery';
+  // a past run that was never closed: its ETA, departure and late risk are history, not a live forecast
+  const stale = !!current && current.status !== 'DELIVERED' && currentDay < todayIso;
   const sameRun = current ? sorted.filter(s => s.tripId === current.tripId && s.outletId === current.outletId) : [];
   // The receipt to count: the latest delivery that is in and not counted yet (a later run may already be planned),
   // else the receipt of the latest delivery that is in (confirmed).
@@ -210,7 +212,7 @@ export default function LiveSm02Deliveries() {
                 {current ? fmtRunDate(trip?.runDate ?? current.etaPlan) : 'No delivery yet'}
                 <span className="m-sep" />{` ${sameRun.length} order${sameRun.length === 1 ? '' : 's'} `}
                 {trip && <><span className="m-sep" />{` ${vans} van${vans === 1 ? '' : 's'} `}</>}
-                {current && <><span className="m-sep" />{` live from ${hub}`}</>}
+                {current && <><span className="m-sep" />{stale ? ` from ${hub}, never closed` : ` live from ${hub}`}</>}
               </div>
               <div className="d-h1">{heading}</div>
             </div>
@@ -225,7 +227,7 @@ export default function LiveSm02Deliveries() {
                 <>
                   <div className="arr">
                     <div className="vstack" style={{ gap: '10px', width: '430px', flexShrink: '0' }}>
-                      <span className="d-kpi__l">{current.status === 'DELIVERED' ? 'Arrived' : 'Expected arrival'} · you&apos;re stop {current.stopSeq}</span>
+                      <span className="d-kpi__l">{current.status === 'DELIVERED' ? 'Arrived' : stale ? 'Planned arrival' : 'Expected arrival'} · you&apos;re stop {current.stopSeq}</span>
                       <span className="arr__v" data-testid="eta">
                         {current.arrivalActual ? fmtClock(current.arrivalActual) : current.etaModelBandEarly && current.etaModelBandLate ? `${fmtClock(current.etaModelBandEarly)}–${fmtClock(current.etaModelBandLate)}` : fmtClock(current.etaModel ?? current.etaPlan)}
                       </span>
@@ -233,9 +235,9 @@ export default function LiveSm02Deliveries() {
                         {"ETA "}<b style={{ color: 'var(--text)' }}>~{fmtClock(current.etaModel ?? current.etaPlan)}</b>
                         {current.etaPlan ? ` · plan ${fmtClock(current.etaPlan)}` : ''}
                         {trip ? <> · <span className="id">{trip.vehicleId}</span></> : null}
-                        {trip?.departTime ? ` · departs ~${fmtClock(trip.departTime)}` : ''}
+                        {trip?.departTime && !stale ? ` · departs ~${fmtClock(trip.departTime)}` : ''}
                       </span>
-                      {risk !== null && current.status !== 'DELIVERED' && (
+                      {risk !== null && current.status !== 'DELIVERED' && !stale && (
                         <span className={`m-tag ${risk >= LATE_RISK_PCT ? 'm-tag--warn' : 'm-tag--ok'}`}><span className="dot" />{risk >= LATE_RISK_PCT ? 'At risk' : 'On time'} for your {o?.windowClose ?? ''} window · late risk {risk}%</span>
                       )}
                     </div>
@@ -249,7 +251,7 @@ export default function LiveSm02Deliveries() {
                     </div>
                   </div>
                   <div className="arr__foot">
-                    {order && <Thread order={order} stop={current} trip={trip} />}
+                    {order && <Thread order={order} stop={current} trip={trip} stale={stale} />}
                     <div className="spacer" />
                     <div className="vstack" style={{ gap: '8px' }}>
                       {sameRun.map(s => (

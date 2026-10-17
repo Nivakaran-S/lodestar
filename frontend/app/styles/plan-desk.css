@@ -254,3 +254,12 @@
 
 /* DSP-03: the decision bar stays at the bottom of the pane while the list scrolls */
 .b-P2 .x-foot { position: sticky; bottom: 0; z-index: 3; }
+
+/* DSP-02: an "in workshop" lane with a long workshop note wraps inside its dashed box at every width, so its
+   VEH-DOWN code never spills out under the plan notes panel */
+.b-P2 .x-down { height: auto; min-height: 44px; padding-top: 8px; padding-bottom: 8px; white-space: normal; }
+.b-P2 .x-down > b { white-space: nowrap; }
+.b-P2 .x-down > .t-3 { min-width: 0; }
+.b-P2 .x-down > .x-code { flex-shrink: 0; }
+/* DSP-01: the brand split under "Confirmed orders" wraps onto a second line instead of being cut at the card edge */
+.b-P2 .x-brands { flex-wrap: wrap; row-gap: 2px; }

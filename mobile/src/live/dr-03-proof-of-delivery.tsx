@@ -35,12 +35,14 @@ export default function ScreenDr03ProofOfDelivery() {
   const delivered = stop?.status === 'DELIVERED';
 
   const step = (d: number) => setUnits(Math.max(0, Math.min(ordered, count + d)));
-  const timeline: [string, string | null | undefined][] = [
-    ['Planned', trip?.planVersion ? `v${trip.planVersion}` : null],
-    ['Loaded', hm(trip?.loadRecord?.loadedAt)],
-    ['En route', hm(trip?.departTime)],
-    ['Arrived', hm(stop?.arrivalActual)],
-    ['Delivered', delivered ? hm(stop?.leaveActual) || '✓' : null],
+  // a step is done by what happened, not by its planned time: the departure time is set when the plan is made
+  const out = trip?.status === 'ENROUTE' || trip?.status === 'COMPLETE';
+  const timeline: [string, string | null | undefined, boolean][] = [
+    ['Planned', trip?.planVersion ? `v${trip.planVersion}` : null, !!trip?.planVersion],
+    ['Loaded', hm(trip?.loadRecord?.loadedAt), !!trip?.loadRecord?.loadedAt || out],
+    ['En route', hm(trip?.departTime), out],
+    ['Arrived', hm(stop?.arrivalActual), !!stop?.arrivalActual],
+    ['Delivered', delivered ? hm(stop?.leaveActual) || '✓' : null, delivered],
   ];
   return (
     <Frame bg="#070b16" nav={nav} style={s.v0}>
@@ -78,13 +80,13 @@ export default function ScreenDr03ProofOfDelivery() {
             </View>
             <View style={s.v31}>
               <View style={s.v30}>
-                {timeline.map(([label, at], i) => (
+                {timeline.map(([label, at, done], i) => (
                   <Fragment key={label}>
-                    {i ? <View style={at ? s.v21 : s.v27} /> : null}
+                    {i ? <View style={done ? s.v21 : s.v27} /> : null}
                     <View style={s.v20}>
-                      <View style={at ? s.v18 : s.v28}>{at ? <Icon xml={X2} width={12} height={12} style={s.v1} /> : null}</View>
+                      <View style={done ? s.v18 : s.v28}>{done ? <Icon xml={X2} width={12} height={12} style={s.v1} /> : null}</View>
                       <View>
-                        <Text style={at ? s.t19 : s.t29} numberOfLines={1}>{label}</Text>
+                        <Text style={done ? s.t19 : s.t29} numberOfLines={1}>{label}</Text>
                       </View>
                       <View>
                         <Text style={s.t9} numberOfLines={1}>{at || '·'}</Text>

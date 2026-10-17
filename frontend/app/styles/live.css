@@ -111,6 +111,13 @@ textarea.lv-input { resize: vertical; min-height: 64px; }
   .b-P1 .ot-item { flex-wrap: wrap; white-space: normal; row-gap: 0; min-width: 64px; }
   .b-P1 .ot-last { width: 44px; }
   .b-P1 .ot-sug { width: 72px; }
+  /* SM-02: the arrival card's fixed 430 px column leaves the receiving plan and the order lines too little room;
+     the columns share the card and wrap under each other when it is narrow */
+  .b-P1 .arr { flex-wrap: wrap; row-gap: 16px; }
+  .b-P1 .arr > .vstack { width: auto !important; flex: 1 1 260px !important; min-width: 0; }
+  .b-P1 .arr__plan { flex: 1 1 280px; min-width: 0; }
+  .b-P1 .arr__plan span { overflow-wrap: anywhere; }
+  .b-P1 .arr__foot { flex-wrap: wrap; row-gap: 14px; }
 }
 
 /* Store desk tables (SM-02, SM-27, SM-28) at every width: a value longer than its column wraps instead of being cut. */
@@ -142,3 +149,32 @@ textarea.lv-input { resize: vertical; min-height: 64px; }
   .b-P1 .d-card > :is(.sx-tr, .wk-row) > .c { flex-shrink: 1; }
   .b-P1 .d-card > :is(.sx-tr, .wk-row) > .c[style*="flex"] { min-width: 96px; }
 }
+
+/* Lodestar Store desk below 900 px: the top bar keeps the menu button, brand, sign-out and avatar; the nav and the
+   outlet open in a side drawer from the left (components/live/chrome.tsx, StoreTop). Wider windows hide the button
+   and the drawer and keep the design's top bar. */
+.b-P1 .s-burger, .b-P1 .s-drawer, .b-P1 .s-backdrop { display: none; }
+@media (max-width: 899px) {
+  .b-P1 .s-top { flex-wrap: nowrap; height: 60px; padding: 0 16px; gap: 10px; }
+  .b-P1 .s-top > .s-top__outlet, .b-P1 .s-top > .s-top__nav { display: none; }
+  .b-P1 .s-burger { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 12px; background: #FFFFFF; color: var(--text); box-shadow: 0 1px 2px rgba(15,20,50,.08), inset 0 0 0 1px var(--hair); cursor: pointer; }
+  .b-P1 .s-burger svg { width: 20px; height: 20px; }
+  .b-P1 .s-burger:focus-visible { outline: 3px solid #047857; outline-offset: 2px; }
+  .b-P1 .s-backdrop { display: block; position: fixed; inset: 0; z-index: 90; background: rgba(12,17,45,.46); }
+  .b-P1 .s-drawer {
+    display: flex; flex-direction: column; gap: 14px; position: fixed; top: 0; left: 0; bottom: 0; z-index: 91;
+    width: min(288px, 86vw); padding: 18px 14px; overflow-y: auto; background: #FBFBFD;
+    box-shadow: 24px 0 64px rgba(12,17,45,.28); transform: translateX(-100%); visibility: hidden;
+    transition: transform .22s ease, visibility 0s linear .22s;
+  }
+  .b-P1 .s-drawer.is-open { transform: none; visibility: visible; transition: transform .22s ease; }
+  .b-P1 .s-drawer > .s-top__brand { margin-right: 0; padding: 2px 6px 4px; }
+  .b-P1 .s-drawer > .s-top__outlet { order: 0; flex: 0 0 auto; height: auto; padding-top: 8px; padding-bottom: 8px; flex-wrap: wrap; white-space: normal; overflow: visible; }
+  .b-P1 .s-drawer__nav { display: flex; flex-direction: column; gap: 2px; }
+  .b-P1 .s-drawer__nav .s-top__i { flex: 0 0 auto; justify-content: flex-start; gap: 10px; height: 44px; padding: 0 12px; font-size: 14px; }
+  .b-P1 .s-drawer__nav .s-top__i svg { width: 18px; height: 18px; }
+  .b-P1 .s-drawer__nav .s-top__count { margin-left: auto; }
+  .b-P1 .s-drawer__foot { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 14px; background: #FFFFFF; box-shadow: inset 0 0 0 1px var(--hair); font-size: 14px; }
+  .b-P1 .s-drawer__foot .lv-link { padding: 0; }
+}
+@media (max-width: 899px) and (prefers-reduced-motion: reduce) { .b-P1 .s-drawer, .b-P1 .s-drawer.is-open { transition: none; } }

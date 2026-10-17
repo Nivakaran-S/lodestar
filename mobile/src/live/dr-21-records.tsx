@@ -64,6 +64,8 @@ export default function ScreenDr21Records() {
                   const temp = st?.order ? (chilled ? ' · chilled' : ' · dry') : '';
                   const short = p.unitsOrdered - p.unitsDelivered;
                   const ex = p.exceptions?.length ?? 0;
+                  // the list is the driver's latest PODs, not only this run's: an older one carries its own day
+                  const podDay = p.savedAt && dayLabel(p.savedAt) !== dayLabel(view?.date ?? today()) ? ` · ${dayLabel(p.savedAt)}` : '';
                   return (
                     <Tap
                       key={p.id}
@@ -77,7 +79,7 @@ export default function ScreenDr21Records() {
                       </View>
                       <View style={s.v22}>
                         <View>
-                          <Text style={s.t19}>{`Stop ${p.tripStop?.stopSeq ?? st?.stopSeq ?? '—'}${temp}`}</Text>
+                          <Text style={s.t19}>{`Stop ${p.tripStop?.stopSeq ?? st?.stopSeq ?? '—'}${temp}${podDay}`}</Text>
                         </View>
                         <View style={s.v21}>
                           <View style={s.v11}>
