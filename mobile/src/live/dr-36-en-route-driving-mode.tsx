@@ -5,7 +5,7 @@ import { hm, until } from '@/lib/time';
 import { plural, titleCase } from '@/lodestar/live';
 import { arriveAtStop } from '@/model/actions';
 import { useOutbox, useRun } from '@/model/hooks';
-import { openMaps, useNet } from '@/model/run';
+import { mapsPlace, openMaps, useNet } from '@/model/run';
 import { LATE_RISK_PCT } from '@/model/preferences';
 import { Frame, Grad, Icon, Scroll, Tap, type ScreenNav, type GradSpec } from '@/lodestar/runtime';
 import { useDepots } from '@/model/depots';
@@ -23,6 +23,7 @@ export default function ScreenDr36EnRouteDrivingMode() {
   const stops = view?.tripStops ?? [];
   const stop = view?.current ?? null;
   const o = stop?.outlet;
+  const place = mapsPlace(o);
   const seq = stop ? stops.indexOf(stop) + 1 : 0;
   const left = stops.filter(x => x.status !== 'DELIVERED').length;
   const prev = stop ? [...stops.slice(0, stops.indexOf(stop))].reverse().find(x => x.status === 'DELIVERED') : stops.at(-1);
@@ -86,11 +87,19 @@ export default function ScreenDr36EnRouteDrivingMode() {
             </View>
           </View>
           <View style={s.v36}>
+            {/* where the van is between the last place it left and the next stop: the depot (or the stop just
+                delivered), the van, the next stop. A middle point only for a stop delivered on the way. */}
             <View style={s.v25}>
               <View style={s.v19} />
-              <View style={s.v20} />
-              <View style={s.v19} />
-              <View style={s.v21} />
+              {prev ? (
+                <>
+                  <View style={s.v20} />
+                  <View style={s.v19} />
+                  <View style={s.v21} />
+                </>
+              ) : (
+                <View style={[s.v20, { flexGrow: 0.5 }]} />
+              )}
               <View style={s.v22}>
                 <Icon xml={X2} width={20} height={20} style={s.v1} />
               </View>
@@ -104,12 +113,14 @@ export default function ScreenDr36EnRouteDrivingMode() {
                 </View>
                 <Text style={s.t27}>{trip?.departTime ? `left ${hm(trip.departTime)}` : '—'}</Text>
               </View>
-              <View style={s.v31}>
-                <View>
-                  <Text style={s.t29}>{prev ? (prev.outlet?.name ?? prev.outletId) : 'Stops left'}</Text>
+              {prev ? (
+                <View style={s.v31}>
+                  <View>
+                    <Text style={s.t29}>{prev.outlet?.name ?? prev.outletId}</Text>
+                  </View>
+                  <Text style={s.t30}>{prev.leaveActual ? `delivered ${hm(prev.leaveActual)}` : 'delivered'}</Text>
                 </View>
-                <Text style={s.t30}>{prev ? (prev.leaveActual ? `delivered ${hm(prev.leaveActual)}` : 'delivered') : String(left)}</Text>
-              </View>
+              ) : null}
               <View style={s.v34}>
                 <View>
                   <Text style={s.t32}>{o?.name ?? stop?.outletId ?? '—'}</Text>
@@ -135,11 +146,12 @@ export default function ScreenDr36EnRouteDrivingMode() {
               <Icon xml={X4} width={18} height={18} style={s.v1} />
               <Text style={s.t16}>{stop ? `Voice: next stop${soon ? ` ${soon}` : stop.etaModel ? ` ~${hm(stop.etaModel)}` : ''}` : 'Voice: read aloud'}</Text>
             </Tap>
-            <Tap style={s.v43} to={null} onPress={() => openMaps(stop ? [stop] : [])} testID="open-maps">
-              <Icon xml={X5} width={16} height={16} style={s.v1} />
-              <Text style={s.t42} numberOfLines={1}>{"Open in Maps"}</Text>
-            </Tap>
           </View>
+          {/* directions: a real button (it was an underlined link); to the town when the outlet has no address on file */}
+          <Tap style={[s.v53, { marginTop: 4 }]} to={null} onPress={() => openMaps(stop ? [stop] : [])} disabled={!place} testID="open-maps">
+            <Icon xml={X5} width={20} height={20} style={s.v1} />
+            <Text style={s.t52} numberOfLines={1}>{!place || place.exact ? 'Directions in Google Maps' : `Directions to ${place.town}`}</Text>
+          </Tap>
         </Scroll>
         <View style={s.v54}>
           <Tap

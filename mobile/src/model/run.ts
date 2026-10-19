@@ -110,9 +110,24 @@ export async function openDialer(phone?: string | null): Promise<false> {
 
 type Place = Outlet & { lat?: number | null; lng?: number | null };
 
+/** A real street address (the synthetic network stores a placeholder tag, not an address). */
+const realAddress = (a?: string | null) => (a && a.trim().length > 3 && a.trim().toLowerCase() !== 'synthetic' ? a.trim() : '');
+
+/**
+ * Where Maps should go for an outlet: its coordinates, else its street address, else its town (the synthetic
+ * network has neither, so the driver at least gets directions to the right town).
+ */
+export function mapsPlace(o?: Place | null): { query: string; exact: boolean; town: string } | null {
+  if (!o) return null;
+  if (typeof o.lat === 'number' && typeof o.lng === 'number') return { query: `${o.lat},${o.lng}`, exact: true, town: o.district ?? '' };
+  const address = realAddress(o.address);
+  if (address) return { query: address, exact: true, town: o.district ?? '' };
+  return o.district ? { query: `${o.district}, Sri Lanka`, exact: false, town: o.district } : null;
+}
+
 /** Google Maps directions through the given stops (the last one is the destination); null without a place. */
 export function mapsUrl(stops: TripStop[]): string | null {
-  const where = (o?: Place) => (o && typeof o.lat === 'number' && typeof o.lng === 'number' ? `${o.lat},${o.lng}` : (o?.address ?? ''));
+  const where = (o?: Place) => mapsPlace(o)?.query ?? '';
   const points = stops.map(s => where(s.outlet as Place | undefined)).filter(Boolean);
   if (!points.length) return null;
   const dest = encodeURIComponent(points.at(-1)!);
