@@ -118,6 +118,11 @@ textarea.lv-input { resize: vertical; min-height: 64px; }
   .b-P1 .arr__plan { flex: 1 1 280px; min-width: 0; }
   .b-P1 .arr__plan span { overflow-wrap: anywhere; }
   .b-P1 .arr__foot { flex-wrap: wrap; row-gap: 14px; }
+  /* SM-27 / SM-28: the order and receipt tables keep their columns (no clipped headers, ids on one line) and scroll
+     sideways inside their card when the side panel leaves them too little room */
+  .b-P1 .d-card:has(> .sx-tr) { overflow-x: auto; }
+  .b-P1 .sx-tr { min-width: 820px; }
+  .b-P1 .sx-tr > .c { flex-shrink: 0; }
 }
 
 /* Store desk tables (SM-02, SM-27, SM-28) at every width: a value longer than its column wraps instead of being cut. */

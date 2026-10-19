@@ -30,7 +30,7 @@ export default function ScreenSm18ReportIssue() {
   const order = q.data ?? q.day.data?.orders.find(o => o.id === q.id) ?? null;
   const depot = order?.outlet?.depot ?? q.day.data?.outlet?.depot;
   const hub = depot ? depotName(depot) : '';
-  const lines = useQuery(order ? `lines.${order.id}` : null, c => api.orderLines(c, [order!.id]), { persist: true });
+  const lines = useQuery(order ? `lines.${order.id}` : null, c => api.orderLines(c, order ? [order.id] : []), { persist: true });
   const saved = order ? receiptIssues.get()[order.id] : undefined;
   const [kind, setKind] = useState<IssueKind>(saved?.kind ?? 'DAMAGED');
   const [units, setUnits] = useState(saved?.units ?? 1);

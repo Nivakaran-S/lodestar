@@ -91,8 +91,9 @@ function exceptionText(problems: TripStop[]): string {
 /** "Back at <depot> <time> · out since <time>", else the depot. */
 function shiftTimes(trips: Trip[], stops: TripStop[], lastTrip: Trip, depotName: (code: string) => string): string {
   const depot = depotName(lastTrip.depot);
-  const out = trips.map(x => x.departTime).filter((x): x is string => !!x).sort((a, b) => a.localeCompare(b))[0];
-  const back = lastTrip.returnTime ?? stops.map(st => st.leaveActual).filter((x): x is string => !!x).sort((a, b) => a.localeCompare(b)).at(-1);
+  // departure and return times are set when the plan is made: they count only once the trip has left / come back
+  const out = trips.filter(x => x.status === 'ENROUTE' || x.status === 'COMPLETE').map(x => x.departTime).filter((x): x is string => !!x).sort((a, b) => a.localeCompare(b))[0];
+  const back = lastTrip.status !== 'COMPLETE' ? undefined : lastTrip.returnTime ?? stops.map(st => st.leaveActual).filter((x): x is string => !!x).sort((a, b) => a.localeCompare(b)).at(-1);
   return [back ? `Back at ${depot} ${hm(back)}` : '', out ? `out since ${hm(out)}` : ''].filter(Boolean).join(' · ') || depot;
 }
 

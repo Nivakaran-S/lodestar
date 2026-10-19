@@ -10,9 +10,9 @@ import { useScreenNav } from '@/components/ScreenShell';
 import Btn from '@/components/live/Btn';
 import { PlanSide } from '@/components/live/chrome';
 import { Ic } from '@/components/live/icons';
-import { p5Link, useMessageStore, usePlanScope, useExceptions, type ExceptionItem } from '@/components/live/plan-data';
+import { p5Link, useMessageStore, usePlanScope, useExceptions, type ExceptionItem, runStamp } from '@/components/live/plan-data';
 import { Empty, ErrorBanner, Skeleton } from '@/components/live/states';
-import { fmtClock, fmtRunDate, fmtTime } from '@/lib/format';
+import { fmtClock, fmtTime } from '@/lib/format';
 import { usePlanningRules } from '@/components/live/planning-rules';
 import { useAction, useEntity, useQuery } from '@/lib/odata/hooks';
 import type { Notification, Outlet, Trip } from '@/lib/odata/types';
@@ -73,7 +73,7 @@ export default function LiveDsp13ExceptionsInbox() {
           <div className="d-head">
             <div className="d-head__txt">
               <div className="d-eyebrow">
-                {runDate ? fmtRunDate(runDate) : ''} · {fmtTime(new Date())}
+                {runStamp(runDate)}
                 <span className="m-sep" />{active.length > 1 ? 'Both depots' : depotName(active[0])}
                 <span className="m-sep" />{"Loader flags, store reports, vehicles, late risk"}
               </div>

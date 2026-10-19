@@ -6,13 +6,13 @@
 // opens its P5 screen (DSP-A1, DSP-B1, DSP-A2). The legend opens DSP-15, the late-risk explainer.
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useFocusId } from '@/lib/workday';
+import { colomboDay, useFocusId } from '@/lib/workday';
 import { PlanSide } from '@/components/live/chrome';
 import { Ic } from '@/components/live/icons';
-import { p5Link, usePlanScope, useExceptions, type ExceptionItem } from '@/components/live/plan-data';
+import { p5Link, usePlanScope, useExceptions, type ExceptionItem, runStamp } from '@/components/live/plan-data';
 import Btn from '@/components/live/Btn';
 import { Empty, ErrorBanner, Skeleton } from '@/components/live/states';
-import { BRAND_LETTER, fmtClock, fmtDay, fmtRunDate, fmtTime, pct } from '@/lib/format';
+import { BRAND_LETTER, fmtClock, fmtDay, pct } from '@/lib/format';
 import { usePlanningRules } from '@/components/live/planning-rules';
 import { useAction, useQuery, useRealtimeRooms, useRealtimeStatus } from '@/lib/odata/hooks';
 import type { Order, Trip, TripStop } from '@/lib/odata/types';
@@ -152,12 +152,12 @@ export default function LiveDsp04LiveOperations() {
           <div className="d-head" style={{ alignItems: 'center' }}>
             <div className="d-head__txt">
               <div className="d-eyebrow">
-                {runDate ? fmtRunDate(runDate) : ''}, {fmtTime(new Date())}
+                {runStamp(runDate, ', ')}
                 <span className="m-sep" />
                 {active.length > 1 ? 'Both depots' : depotName(active[0])}
                 <span className="m-sep" />
                 <span className={`m-tag ${live === 'connected' ? 'm-tag--ok' : 'm-tag--warn'}`} data-testid="live-status">
-                  <span className="dot" />{live === 'connected' ? 'Live' : 'Reconnecting'} · updated {fmtClock(new Date())}
+                  <span className="dot" />{runDate && runDate < colomboDay() ? 'Past run' : live === 'connected' ? 'Live' : 'Reconnecting'} · updated {fmtClock(new Date())}
                 </span>
               </div>
               <div className="d-h1" style={{ fontSize: '28px' }}>

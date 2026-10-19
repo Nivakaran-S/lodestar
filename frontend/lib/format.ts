@@ -124,3 +124,21 @@ export function daysAgo(n: number, now: Date = new Date()): string {
 export const LATE_RISK_PCT = 30;
 /** Colour banding only: an at-risk stop at or above this reads red (exception) instead of amber. */
 export const LATE_RISK_HIGH_PCT = 60;
+
+/**
+ * A plan's notes as text. The planning service stores the agent's explanation as JSON ({ text, did, checked });
+ * older plans and hand-made ones carry plain text.
+ */
+export function planNote(v: string | null | undefined): string | null {
+  const t = v?.trim();
+  if (!t) return null;
+  if (t.startsWith('{')) {
+    try {
+      const o = JSON.parse(t) as { text?: unknown };
+      if (typeof o.text === 'string') return o.text;
+    } catch {
+      // not JSON after all: show it as written
+    }
+  }
+  return t;
+}

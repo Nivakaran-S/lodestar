@@ -61,9 +61,9 @@ docker compose up --build     # first build takes a while; then open https://loc
 Open the start page in a desktop browser. For the driver and the loader, use a phone, or the browser's device toolbar at 390 × 844. Each role signs in from its card on the start page.
 
 **Store manager: order (desktop)**
-1. Pick **Store manager** and sign in with phone `77 456 7890` and the code shown on screen. SM-01 shows the order form for the next run that is still open, with the 4 PM cut-off countdown.
-2. Add a line, change a quantity and press **Submit**. The order appears in the order history with its run date. (After 4 PM it goes to the following run.)
-3. Open **Deliveries** (SM-02): today's two orders for OUT106 (chilled and ambient) are waiting to be planned.
+1. Pick **Store manager** and sign in with phone `77 456 7890` and the code shown on screen. **Deliveries** (SM-02) opens: today's two orders for OUT106 (chilled and ambient) are waiting to be planned.
+2. Open **Order** (SM-27) and press **New order**: SM-01 shows the order form for the next run that is still open, with the 4 PM cut-off countdown.
+3. Add a line, change a quantity and press **Submit**. The order appears in the order history with its run date. (After 4 PM it goes to the following run.)
 
 **Dispatcher: plan and approve (desktop)**
 

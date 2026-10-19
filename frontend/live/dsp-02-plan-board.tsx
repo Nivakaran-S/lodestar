@@ -11,7 +11,7 @@ import { Ic } from '@/components/live/icons';
 import { idleSummary, Lane, tripTwoHead, useBoardCards } from '@/components/live/board';
 import { infeasibility, PLAN_EVENTS, useReviewRun, usePlanScope } from '@/components/live/plan-data';
 import { Empty, ErrorBanner, Skeleton } from '@/components/live/states';
-import { fmtNum, fmtRunDate, fmtTime, title } from '@/lib/format';
+import { fmtNum, fmtRunDate, fmtTime, planNote, title } from '@/lib/format';
 import { usePlanningRules } from '@/components/live/planning-rules';
 import { useQuery } from '@/lib/odata/hooks';
 import type { AgentRunDetail, Plan } from '@/lib/odata/types';
@@ -192,7 +192,7 @@ export default function LiveDsp02PlanBoard() {
                     ))}
                   </>
                 ) : (
-                  <div className="dx-t14">{p?.explanation ?? p?.notes ?? (p ? 'No notes on this plan.' : 'Ask the planning agent to draft this run.')}</div>
+                  <div className="dx-t14" style={{ whiteSpace: 'pre-line' }}>{planNote(p?.explanation ?? p?.notes) ?? (p ? 'No notes on this plan.' : 'Ask the planning agent to draft this run.')}</div>
                 )}
                 {checks.length > 0 && (
                   <>

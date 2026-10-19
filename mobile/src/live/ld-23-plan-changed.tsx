@@ -208,7 +208,7 @@ export default function ScreenLd23PlanChanged() {
         <View style={s.v68}>
           <View style={s.v62}>
             <Icon xml={X6} width={18} height={18} style={s.v3} />
-            <Text style={s.t61}>{"Sheet stays locked until you tap Got it."}</Text>
+            <Text style={s.t61}>{moved.length ? 'Sheet stays locked until you tap Got it.' : 'Nothing to take off: your sheet is unchanged.'}</Text>
           </View>
           <View style={s.v12} />
           <Tap lk="L226" style={s.v67} to={after ? { to: 'ld-21-bay-overview', params: { trip: after.id } } : undefined}>

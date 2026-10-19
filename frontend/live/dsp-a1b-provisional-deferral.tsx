@@ -9,12 +9,13 @@
 // The design's "1.1 m³ held on VEH058" is not shown: the planner has no capacity hold on a later run.
 import { useState } from 'react';
 import { useScreenNav } from '@/components/ScreenShell';
+import { runStamp } from '@/components/live/plan-data';
 import Btn from '@/components/live/Btn';
 import { PlanSide } from '@/components/live/chrome';
 import { riskiestStop, sendNotice, skipAfter, useNextRunDay, useStoreManagers } from '@/components/live/degradation';
 import { Ic } from '@/components/live/icons';
 import { Empty, ErrorBanner, Skeleton } from '@/components/live/states';
-import { fmtClock, fmtNum, fmtRunDate, fmtTime } from '@/lib/format';
+import { fmtClock, fmtNum, fmtRunDate } from '@/lib/format';
 import { useAction } from '@/lib/odata/hooks';
 import type { Deferral, DeferralReason } from '@/lib/odata/types';
 import { useFocusId } from '@/lib/workday';
@@ -82,7 +83,7 @@ export default function LiveDspA1bProvisionalDeferral() {
             <div className="d-head__txt">
               <div className="d-eyebrow">
                 {scope.active.length > 1 ? 'Both depots ' : `${depotName(scope.active[0])} `}<span className="m-sep" />
-                {` ${scope.runDate ? fmtRunDate(scope.runDate) : '…'}, ${fmtTime(new Date())} `}
+                {` ${runStamp(scope.runDate, ', ')} `}
               </div>
               <div className="d-h1">{"Live operations"}</div>
             </div>

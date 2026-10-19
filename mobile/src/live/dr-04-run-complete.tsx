@@ -64,7 +64,7 @@ export default function ScreenDr04RunComplete() {
                   ? [
                       sum.startedAt ? `Started ${hm(sum.startedAt)}` : '',
                       sum.endedAt ? `last stop ${hm(sum.endedAt)}` : '',
-                      plural(sum.delivered.length, 'stop'),
+                      `${sum.delivered.length} of ${plural(sum.stops.length, 'stop')} delivered`,
                       `${sum.unitsDelivered} of ${sum.unitsOrdered} units`,
                     ].filter(Boolean).join(' · ')
                   : 'Sign in to see your run'}

@@ -14,9 +14,9 @@ import {
   minutesSince, openStops, riskiestStop, sendNotice, skipAfter, useDriver, useRunTrips, useSignal, useStoreManagers, type SignalEvent,
 } from '@/components/live/degradation';
 import { Ic } from '@/components/live/icons';
-import { usePlanScope } from '@/components/live/plan-data';
+import { usePlanScope, runStamp } from '@/components/live/plan-data';
 import { Empty, ErrorBanner, Skeleton } from '@/components/live/states';
-import { fmtClock, fmtNum, fmtRunDate, fmtTime, title } from '@/lib/format';
+import { fmtClock, fmtNum, fmtTime, title } from '@/lib/format';
 import { useAction } from '@/lib/odata/hooks';
 import type { Trip, TripStop } from '@/lib/odata/types';
 import { useFocusId } from '@/lib/workday';
@@ -253,7 +253,7 @@ export default function LiveDspA1BlackoutView() {
             <div className="d-head__txt">
               <div className="d-eyebrow">
                 {active.length > 1 ? 'Both depots ' : `${depotName(active[0])} `}<span className="m-sep" />
-                {` ${runDate ? fmtRunDate(runDate) : '…'}, ${fmtTime(new Date())} `}<span className="m-sep" />
+                {` ${runStamp(runDate, ', ')} `}<span className="m-sep" />
                 {` ${onRoad.length} on the road · ${onRoad.length - silent.filter(t => t.status === 'ENROUTE').length} reporting live · ${stops.filter(s => s.status === 'DELIVERED').length} of ${stops.length} stops confirmed`}
               </div>
               <div className="d-h1">{"Live operations"}</div>

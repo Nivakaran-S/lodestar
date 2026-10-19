@@ -5,7 +5,8 @@
 // Offline (DSP-24): when the desk loses the API, the offline banner shows under the header, the numbers freeze at
 // what was last loaded and are marked "Not live". DSP-24 renders this screen with `offlineView`.
 import { useAuth } from '@/lib/auth/AuthProvider';
-import { dayFilter, fmtClock, fmtNum, fmtRunDate, fmtTime, pct } from '@/lib/format';
+import { colomboDay } from '@/lib/workday';
+import { dayFilter, fmtClock, fmtNum, fmtRunDate, fmtTime, pct, planNote } from '@/lib/format';
 import { useQuery } from '@/lib/odata/hooks';
 import type { Notification, Plan, Trip, Vehicle } from '@/lib/odata/types';
 import { PlanSide, useCount } from '@/components/live/chrome';
@@ -74,7 +75,9 @@ function DepotCard({ depot, runDate }: { depot: string; runDate: string }) {
           <div className="dx-stat"><b>{fleet.data ? `${vehicles.length - workshop}/${vehicles.length}` : '…'}</b><span>{!fleet.data ? '' : workshop ? `${workshop} in workshop` : 'all ready'}</span></div>
         </div>
         <div className="dx-bar"><div className="dx-g-ok" style={{ width: `${pct(delivered, served ?? 0)}%` }} /></div>
-        {p?.explanation || p?.notes ? <div className="dx-t14">{p.explanation ?? p.notes}</div> : null}
+        {planNote(p?.explanation ?? p?.notes) ? (
+          <div className="dx-t14" style={{ whiteSpace: 'pre-line', display: '-webkit-box', WebkitLineClamp: 6, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{planNote(p?.explanation ?? p?.notes)}</div>
+        ) : null}
       </div>
     </div>
   );
@@ -129,6 +132,9 @@ export default function LiveDsp08TodayOverview({ offlineView = false }: { offlin
   const hour = Number(new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hourCycle: 'h23', timeZone: 'Asia/Colombo' }).format(new Date()));
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const open = exceptions.data?.length ?? 0;
+  // with no run from today on, the desk reviews the latest plan's day: say so, and do not call a past run live
+  const today = colomboDay();
+  const past = !!runDate && runDate < today;
 
   return (
     <div className="frame frame--desktop mode-dispatcher" data-name={offlineView ? 'DSP-24 Offline banner · desktop' : 'DSP-08 Today overview · desktop'}>
@@ -138,7 +144,7 @@ export default function LiveDsp08TodayOverview({ offlineView = false }: { offlin
           <div className="d-head">
             <div className="d-head__txt">
               <div className="d-eyebrow">
-                {runDate ? fmtRunDate(runDate) : '…'} · {fmtTime(new Date())}
+                {past ? `${fmtRunDate(today)} · ${fmtTime(new Date())} · showing the ${fmtRunDate(runDate)} run` : `${runDate ? fmtRunDate(runDate) : '…'} · ${fmtTime(new Date())}`}
                 <span className="m-sep" />
                 {active.length > 1 ? 'Both depots' : depotName(active[0])}
               </div>
@@ -155,9 +161,11 @@ export default function LiveDsp08TodayOverview({ offlineView = false }: { offlin
           <div className="dx-hrow">
             <div className={`dx-hero${frozen ? ' dx-hero--off' : ''}`} style={{ flex: '1.25' }} data-state={frozen ? 'offline' : 'live'}>
               <div className="dx-hero__l">
-                {runDate ? fmtRunDate(runDate) : ''} run · {frozen ? `delivered, as at ${asAt ?? 'last load'}` : 'delivered so far'}
+                {runDate ? fmtRunDate(runDate) : ''} run · {frozen ? `delivered, as at ${asAt ?? 'last load'}` : past ? 'delivered' : 'delivered so far'}
                 <span className="spacer" />
-                {frozen ? (
+                {past && !frozen ? (
+                  <span className="m-tag" style={{ color: '#B9C0E6' }}><Ic n="clock" />{"Past run"}</span>
+                ) : frozen ? (
                   <span className="m-pill m-pill--offline"><Ic n="wifi-off" />{"Not live"}</span>
                 ) : (
                   <span className="m-tag" style={{ color: live === 'connected' ? '#6EE7B7' : '#B9C0E6' }} {...link('L149')}>

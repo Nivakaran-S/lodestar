@@ -24,7 +24,7 @@ const initials = (name?: string) =>
 const kind = (t: Trip) => `${t.vehicle?.tempClass === 'CHILLED' ? 'Reefer ' : ''}${t.vehicle?.type === 'VAN' ? 'van' : t.vehicle ? 'truck' : ''}`.trim();
 
 export default function ScreenLd01DockQueue() {
-  const { name: depotName } = useDepots();
+  const { name: depotName, loading: depotsLoading } = useDepots();
   const claims = useClaims();
   const { data, loading, error } = useBayQueue();
   const { waiting } = useOutbox();
@@ -44,7 +44,7 @@ export default function ScreenLd01DockQueue() {
             <Icon xml={X0} width={36} height={36} style={s.v1} />
           </View>
           <View style={s.v4}>
-            <Text style={s.t3}>{depot ? `${depotName(depot)}` : 'Lodestar Dock'}</Text>
+            <Text style={s.t3}>{depot && !depotsLoading ? depotName(depot) : 'Lodestar Dock'}</Text>
           </View>
           <Tap style={s.v10} to={null} onPress={() => signOutTo('ld-06-sign-in')} testID="switch-user">
             <View style={s.v6}>

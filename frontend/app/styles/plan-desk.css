@@ -263,3 +263,6 @@
 .b-P2 .x-down > .x-code { flex-shrink: 0; }
 /* DSP-01: the brand split under "Confirmed orders" wraps onto a second line instead of being cut at the card edge */
 .b-P2 .x-brands { flex-wrap: wrap; row-gap: 2px; }
+/* A table's flexible last column ("What happened next" on DSP-17) keeps a readable width; a narrow window scrolls
+   the table inside its card instead of breaking the header one letter per line */
+:is(.b-P2, .b-P5, .b-P6) .dx-tr > .dx-td[style*="flex"] { min-width: 160px; }

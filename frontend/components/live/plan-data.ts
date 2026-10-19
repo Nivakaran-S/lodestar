@@ -3,7 +3,7 @@
 // DSP-13) built from real records: orders in EXCEPTION, stops with a high late risk, and alert notifications
 // (vehicle and signal alerts, dock flags and vehicle faults, POD exceptions and failed stops, store receipt issues), and
 // the run's synced offline records with a conflict note (DSP-A2). p5Link() names the P5 screen that handles an item.
-import { addDays, dayFilter, fmtClock, fmtTime, isoDay } from '@/lib/format';
+import { addDays, dayFilter, fmtClock, fmtRunDate, fmtTime, isoDay } from '@/lib/format';
 import { loadPlanningRules } from './planning-rules';
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useAction, useEntity, useQuery } from '@/lib/odata/hooks';
@@ -357,4 +357,13 @@ export function useLateRiskExplain(stopId: string | null | undefined) {
   return useQuery<LateRiskExplain>(stopId ? `late-risk-explain:${stopId}` : null, async c =>
     valueOf<LateRiskExplain>(await c.fn('Plans', null, 'LateRiskExplain', { stopId: stopId! })),
   { refreshOn: ['eta_update'] });
+}
+
+/**
+ * The run date and the time now, for a plan screen's eyebrow ("Mon 19 Oct · 4:10 PM"). A run date before today is
+ * the latest plan kept for review, not today: it says so instead of pairing that day with the clock.
+ */
+export function runStamp(runDate: string | undefined, sep = ' · '): string {
+  if (!runDate) return `…${sep}${fmtTime(new Date())}`;
+  return runDate < colomboDay() ? `${fmtRunDate(runDate)} run, a past day` : `${fmtRunDate(runDate)}${sep}${fmtTime(new Date())}`;
 }
