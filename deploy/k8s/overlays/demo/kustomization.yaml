@@ -17,49 +17,49 @@ resources:
 images:
 - name: lodestar-agent
   newName: ghcr.io/nivakaran-s/lodestar-agent
-  newTag: 8bc99b50265cea2f2b84551d124e6a28a6cf7780
+  newTag: 5c64b9065e231d1ecd64c4f7481c69f24c4c69ac
 - name: lodestar-audit
   newName: ghcr.io/nivakaran-s/lodestar-audit
-  newTag: 8bc99b50265cea2f2b84551d124e6a28a6cf7780
+  newTag: 5c64b9065e231d1ecd64c4f7481c69f24c4c69ac
 - name: lodestar-auth
   newName: ghcr.io/nivakaran-s/lodestar-auth
-  newTag: 8bc99b50265cea2f2b84551d124e6a28a6cf7780
+  newTag: 5c64b9065e231d1ecd64c4f7481c69f24c4c69ac
 - name: lodestar-fleet
   newName: ghcr.io/nivakaran-s/lodestar-fleet
-  newTag: 8bc99b50265cea2f2b84551d124e6a28a6cf7780
+  newTag: 5c64b9065e231d1ecd64c4f7481c69f24c4c69ac
 - name: lodestar-frontend
   newName: ghcr.io/nivakaran-s/lodestar-frontend
-  newTag: 8bc99b50265cea2f2b84551d124e6a28a6cf7780
+  newTag: 5c64b9065e231d1ecd64c4f7481c69f24c4c69ac
 - name: lodestar-gateway
   newName: ghcr.io/nivakaran-s/lodestar-gateway
-  newTag: 8bc99b50265cea2f2b84551d124e6a28a6cf7780
+  newTag: 5c64b9065e231d1ecd64c4f7481c69f24c4c69ac
 - name: lodestar-identity
   newName: ghcr.io/nivakaran-s/lodestar-identity
-  newTag: 8bc99b50265cea2f2b84551d124e6a28a6cf7780
+  newTag: 5c64b9065e231d1ecd64c4f7481c69f24c4c69ac
 - name: lodestar-migrate
   newName: ghcr.io/nivakaran-s/lodestar-migrate
-  newTag: 8bc99b50265cea2f2b84551d124e6a28a6cf7780
+  newTag: 5c64b9065e231d1ecd64c4f7481c69f24c4c69ac
 - name: lodestar-mobile-web
   newName: ghcr.io/nivakaran-s/lodestar-mobile-web
-  newTag: 8bc99b50265cea2f2b84551d124e6a28a6cf7780
+  newTag: 5c64b9065e231d1ecd64c4f7481c69f24c4c69ac
 - name: lodestar-notifications
   newName: ghcr.io/nivakaran-s/lodestar-notifications
-  newTag: 8bc99b50265cea2f2b84551d124e6a28a6cf7780
+  newTag: 5c64b9065e231d1ecd64c4f7481c69f24c4c69ac
 - name: lodestar-ocr
   newName: ghcr.io/nivakaran-s/lodestar-ocr
-  newTag: 8bc99b50265cea2f2b84551d124e6a28a6cf7780
+  newTag: 5c64b9065e231d1ecd64c4f7481c69f24c4c69ac
 - name: lodestar-orders
   newName: ghcr.io/nivakaran-s/lodestar-orders
-  newTag: 8bc99b50265cea2f2b84551d124e6a28a6cf7780
+  newTag: 5c64b9065e231d1ecd64c4f7481c69f24c4c69ac
 - name: lodestar-outlets
   newName: ghcr.io/nivakaran-s/lodestar-outlets
-  newTag: 8bc99b50265cea2f2b84551d124e6a28a6cf7780
+  newTag: 5c64b9065e231d1ecd64c4f7481c69f24c4c69ac
 - name: lodestar-planning
   newName: ghcr.io/nivakaran-s/lodestar-planning
-  newTag: 8bc99b50265cea2f2b84551d124e6a28a6cf7780
+  newTag: 5c64b9065e231d1ecd64c4f7481c69f24c4c69ac
 - name: lodestar-sync
   newName: ghcr.io/nivakaran-s/lodestar-sync
-  newTag: 8bc99b50265cea2f2b84551d124e6a28a6cf7780
+  newTag: 5c64b9065e231d1ecd64c4f7481c69f24c4c69ac
 - name: lodestar-trips
   newName: ghcr.io/nivakaran-s/lodestar-trips
-  newTag: 8bc99b50265cea2f2b84551d124e6a28a6cf7780
+  newTag: 5c64b9065e231d1ecd64c4f7481c69f24c4c69ac
