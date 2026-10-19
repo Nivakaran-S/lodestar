@@ -2,14 +2,14 @@
 
 **Every order, one thread.** A delivery planning and execution system for Waypoint Group's two depots (Peliyagoda and Kandy), built by Team Adagard for Tech-Triathlon 2026.
 
-One system, five faces on one URL:
+One system, five faces: four on one URL, and the driver's Android app:
 
 | Face | Who | Where | What they do |
 |---|---|---|---|
 | Lodestar Store | Store manager | Desktop and phone | Order before 4 PM, follow the ETA, count the delivery, report an issue |
 | Lodestar Plan | Dispatcher | Desktop (phone on call) | Plan the day with the planning agent, review deferrals, approve, watch it live |
 | Lodestar Dock | Loader | Bay tablet or desktop browser, or phone (390 px) | Load in reverse stop order, flag a shortfall, release the vehicle |
-| Lodestar Run | Driver | Phone (390 px), works offline | Drive the run, arrive, prove each delivery, sync later |
+| Lodestar Run | Driver | Android app (not on the website), works offline | Drive the run, arrive, prove each delivery, sync later |
 | Lodestar Admin | Admin | Desktop | People, phones, outlets, vehicles, audit log |
 
 ## Live demo
@@ -25,12 +25,12 @@ Open the URL and pick a role on the start page: each card opens that role's own 
 | Store manager (OUT106, Nuwara Eliya) | Lodestar Store, desk (SM-26) or phone app (SM-05) | Phone `77 456 7890`, then the 6-digit code |
 | Dispatcher (both depots) | Lodestar Plan (DSP-06 → DSP-07) | `nilanthi@waypoint.lk`, password `Waypoint-Judge-2026`, then the 6-digit code |
 | Loader (Kandy) | Lodestar Dock (LD-06) | Staff ID `KDY-0427`, PIN `2468` |
-| Driver (VEH057, Kandy) | Lodestar Run (DR-06 → DR-07) | Phone `77 345 6789`, then the 6-digit code |
+| Driver (VEH057, Kandy) | Lodestar Run, Android app (DR-06 → DR-07) | Phone `77 345 6789`, then the 6-digit code |
 | Admin | Lodestar Admin (ADM-01) | `admin` — not published: it can approve phones and change accounts. Ask the team (the submission form lists our contact). |
 
 **The 6-digit code:** this demo has no SMS gateway, so the code the SMS would carry is shown on the screen ("Demo: your code is …"). Codes last 5 minutes; a new one can be sent after 30 s.
 
-The judge walkthrough below needs only the four role accounts. Driver and loader screens are designed for a phone: use a phone or a 390 px wide browser window. The Dock also has its bay-tablet screens, which a desktop browser shows.
+The judge walkthrough below needs only the four role accounts. Lodestar Run, the driver's app, is an Android app only: it is not on the website (build and install: [Android app](#android-app-lodestar-run)). The loader's screens are designed for a phone: use a phone or a 390 px wide browser window; the Dock also has its bay-tablet screens, which a desktop browser shows.
 
 On a local install (`docker compose up`) the dispatcher's password is `lodestar-dev-only` and the admin's `lodestar-admin-dev-only`; phones, staff ID and PIN are the same as above.
 
@@ -46,7 +46,7 @@ docker compose up --build     # first build takes a while; then open https://loc
 | Open | What |
 |---|---|
 | https://localhost:8443 | Start page: pick a role. The browser warns about the dev certificate once. |
-| https://localhost:8443/field/ | Field app (driver, loader, store phone) on the same origin |
+| https://localhost:8443/field/ | Field app (loader, store phone, Plan on call) on the same origin; the local stack also keeps the driver's screens here for the e2e suite (`RUN_ON_WEB`) |
 | https://localhost:8443/odata/v4/ | OData v4 API (bearer token required) |
 | http://localhost:8180/auth | Keycloak admin console (local only) |
 
@@ -56,9 +56,22 @@ docker compose up --build     # first build takes a while; then open https://loc
 - **Hosted database (optional):** put `EXTERNAL_DATABASE_URL=postgres://…?sslmode=require` (e.g. Prisma Postgres) in `.env` and start with `docker compose -f docker-compose.yml -f docker-compose.prisma.yml up -d`; the application data then lives there, Keycloak and the agent's checkpoints stay local.
 - **Public address:** `PUBLIC_ORIGIN` in `.env` is the one setting for the URL people open (Keycloak hostname, issuer, redirect URIs, API).
 
+## Android app (Lodestar Run)
+
+The driver's app runs on Android only. It is the same Expo code as the field app, built against the live demo:
+
+```bash
+cd mobile
+EXPO_PUBLIC_API_URL=https://waypoint-lodestar.eastasia.cloudapp.azure.com npx expo prebuild -p android
+cd android && ./gradlew assembleRelease          # app/build/outputs/apk/release/app-release.apk
+adb install -r app/build/outputs/apk/release/app-release.apk
+```
+
+Open **Lodestar** on the phone, choose **Lodestar Run** and sign in with the driver's phone number and the code shown on screen. For a local stack, leave `EXPO_PUBLIC_API_URL` out and use `adb reverse tcp:8443 tcp:8443`.
+
 ## Judge walkthrough
 
-Open the start page in a desktop browser. For the driver and the loader, use a phone, or the browser's device toolbar at 390 × 844. Each role signs in from its card on the start page.
+Open the start page in a desktop browser. For the loader, use a phone, or the browser's device toolbar at 390 × 844; the driver uses the Android app. Each other role signs in from its card on the start page.
 
 **Store manager: order (desktop)**
 1. Pick **Store manager** and sign in with phone `77 456 7890` and the code shown on screen. **Deliveries** (SM-02) opens: today's two orders for OUT106 (chilled and ambient) are waiting to be planned.
@@ -78,9 +91,9 @@ Open the start page in a desktop browser. For the driver and the loader, use a p
 9. Open VEH057's load sheet (LD-02): lines in reverse stop order. Tick them off; on one line, **Flag** a shortfall and **Send flag** (LD-03).
 10. **Release to driver** (LD-04) with the seal number and the reefer temperature (a temperature above the limit blocks the release). The trip and its orders go en route.
 
-**Driver: deliver with proof (phone)**
+**Driver: deliver with proof (Android app)**
 
-11. Open the **Driver** card and sign in with phone `77 345 6789` and the code shown on screen. Today's run (DR-01) shows VEH057's stops with their ETAs. Press **Start trip**.
+11. Open the **Lodestar** app on the Android phone, choose **Lodestar Run** and sign in with phone `77 345 6789` and the code shown on screen. Today's run (DR-01) shows VEH057's stops with their ETAs. Press **Start trip**.
 12. At OUT106: **Arrived**, then **Start delivery** (DR-02), count the units, capture the receiver's name and **signature**, record any exception, then **Complete stop** (DR-03). No signature? **Use store OTP** (DR-16).
 13. Offline (the app must have opened once online on that phone): switch the phone to airplane mode before the next stop. Complete it with the proof of delivery and a photo (DR-20); everything waits in the phone's outbox. Reconnect: the outbox sends once, in order, and the records reconcile without duplicates. If the office changed the same stop meanwhile, the dispatcher sees the conflict on the reconcile screen (DSP-A2) and the field evidence wins.
 
@@ -106,7 +119,7 @@ Open the start page in a desktop browser. For the driver and the loader, use a p
 | Folder | Contents |
 |---|---|
 | `frontend/` | Desk app (Next.js): start page, Lodestar Store desk, Plan, Admin |
-| `mobile/` | Field app (Expo; served in the browser at `/field/`): Run, Dock, Store phone, Plan on call |
+| `mobile/` | Field app (Expo): Run on Android; Dock, Store phone and Plan on call also in the browser at `/field/` |
 | `backend/` | OData v4 services (NestJS + Prisma): auth, orders, planning, fleet, outlets, trips, sync, notifications, audit; NGINX gateway; Keycloak realm; planning agent (`apps/agent`, Python + LangGraph) |
 | `tests/` | Playwright full-stack and cross-role flows, design-conformance baselines (`tests/visual`), k6 load test |
 | `tools/qa/` | The quality gate (`gate.sh`), stack readiness, Sonar gate, design baselines |
@@ -133,7 +146,7 @@ The Day 5 Designathon submission is the specification. Where the build differs:
 | Sign-in | One designed sign-in per app (SM-05/06, SM-26, DSP-06/07, LD-06, DR-06/07, ADM-01) | As designed, with no Keycloak login page on the normal path: a Lodestar extension inside Keycloak (`backend/identity/extension`) checks phone + code, staff ID + PIN and email + password + second step, and Keycloak issues the session (no service can sign in as a user). Codes: 5 minutes, 5 tries, 30 s between sends, 5 an hour per number (50 on a demo stack). | Same screens as the design; Keycloak stays the only token issuer. |
 | SMS codes | The code arrives by SMS | `SMS_PROVIDER=log` (default) with `DEMO_SHOW_CODES=true`: the code is shown on screen. `twilio` or `notifylk` send real SMS when configured. | No SMS gateway contract for the demo. |
 | Downloadable voice packs (Sinhala, Tamil) | Voice settings, pack download, voice unavailable (DR-33–35, LD-28–30, SM-37–39) | Not built. Read-aloud uses the phone's own text-to-speech where the build has it. | Time. |
-| Field app on the web | Native phone apps | The same Expo app served in the browser at `/field/`; on a tablet or desktop window the Dock uses its bay-tablet screens and the field sign-ins use the desk layout. An Android build comes from the same code (`npx expo prebuild -p android`, then Gradle); debug builds can reach a local stack over `adb reverse`. | Judges use a browser; one URL for every role. |
+| Field app on the web | Native phone apps | Lodestar Run is native only: the Android app. The Dock, the store phone app and Plan on call are the same Expo app served in the browser at `/field/`; on a tablet or desktop window the Dock uses its bay-tablet screens and the field sign-ins use the desk layout. The browser build leaves the driver's screens out (`EXPO_PUBLIC_RUN_ON_WEB`, off for the demo; the local stack turns it on so the e2e suite can drive a run). | A driver works from the phone in the cab, offline; the other roles judge from one URL. |
 | SMS and phone-call alerts | Settings offer SMS and a call per alert (DSP-20, DSP-33, SM-30) | In-app (WebSocket) always. SMS is behind `SMS_ENABLED` (default off: the SMS switches show "Not available in this deployment"); when on, the recipient's own settings decide, and `SMS_PROVIDER=log` (default) records what would be sent on the notification (`payload.delivery.sms`) and in the audit log, while `SMS_PROVIDER=http` posts `{to, from, body}` to `SMS_API_URL` (see `.env.example`). The call channel is removed. | No SMS gateway contract for the demo; no voice provider at all. |
 | Proof-of-delivery photos and signatures | Photo of the drop and the receiver's signature shown with the POD | The phone keeps the photo (JPEG) and the signature (SVG, drawn on DR-03/DR-20) in its outbox until there is signal, then uploads them (`POST /media/pod-photos`, photos at most 3 MB, JPEG/PNG/WebP checked by content; signatures rebuilt on the server from path data only). They are stored in Postgres (`trips.PodPhoto`) and shown to the depot's dispatchers (trip drawer DSP-11, reconcile DSP-A2), the store's manager (SM-02) and the driver's record (DR-22). | One database to back up and secure; photos and signatures are small. |
 | Estimators (service time, late risk, demand) | The Datathon models drive ETAs, late-risk alerts and the capacity outlook | The trained Adagard models run in the internal `ml` service (`backend/apps/ml`: `POST /predict/stops`, `POST /forecast/weeks`). The planning agent scores each draft's stops in one call (predicted service minutes, simulated ETA, late risk); `UpdateLateRisk` keeps the model's late risk as the floor; the capacity outlook (DSP-05) uses the weekly demand forecast and stores it, so Plan's model quality shows its WAPE once a week is over. The models and `dtcore.py` are mounted from the host (`ML_MODELS_DIR`, `ML_DTCORE`), never in the repo or an image; without them, or when the service is slow (8 s) or down, every caller keeps its heuristic (booklet allowances, road-class ETA, history median). | Competition terms: the trained models and datathon code are not redistributed. |

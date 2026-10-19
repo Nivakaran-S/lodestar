@@ -53,3 +53,14 @@ export function runDateOverride(): string | undefined {
   const v = process.env.EXPO_PUBLIC_RUN_DATE;
   return v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined;
 }
+
+/**
+ * Lodestar Run (the driver's screens, dr-*) is an Android app: the web build leaves it out, unless the build sets
+ * EXPO_PUBLIC_RUN_ON_WEB=true (the local stack does, so the e2e suite can drive a run in a browser).
+ */
+export const RUN_ON_WEB = process.env.EXPO_PUBLIC_RUN_ON_WEB === 'true';
+
+/** True when this build shows the driver's screens: every native build, and the web only when RUN_ON_WEB. */
+export function runAvailable(): boolean {
+  return Platform.OS !== 'web' || RUN_ON_WEB;
+}

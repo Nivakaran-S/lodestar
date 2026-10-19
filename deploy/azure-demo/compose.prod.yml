@@ -90,6 +90,8 @@ services:
       DEMO_ADMIN_PASSWORD_HINT: ""        # the public start page never shows the admin password
   mobile-web:
     mem_limit: 64m
+    # Lodestar Run is an Android app: a browser build made here (up.sh, an image missing) leaves it out too
+    build: { args: { RUN_ON_WEB: "false" } }
 
 volumes:
   caddy_data:

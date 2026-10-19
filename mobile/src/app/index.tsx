@@ -8,11 +8,14 @@ import { FACES, FLOWS, LIVE } from '@/screens/registry';
 import { goHome } from '@/auth/use-sign-in';
 import { useOutbox, useSession } from '@/model/hooks';
 import { session } from '@/model/platform';
+import { runAvailable } from '@/lib/config';
 
 const live = new Set(LIVE);
 // Only screens that run on real data are opened from here; the design-only mocks stay out of navigation.
-const faces = FACES.map(f => ({ ...f, screens: f.screens.filter(s => live.has(s.key)) }));
-const flows = FLOWS.filter(f => live.has(f.key));
+// Lodestar Run is an Android app: a web build without it (lib/config.ts) leaves the driver's face and flows out.
+const shown = (key: string) => runAvailable() || !key.startsWith('dr-');
+const faces = FACES.filter(f => shown(f.start)).map(f => ({ ...f, screens: f.screens.filter(s => live.has(s.key)) }));
+const flows = FLOWS.filter(f => live.has(f.key) && shown(f.key));
 
 // One build carries the four field faces for the demo; each opens at its own splash screen.
 const COLOR: Record<string, string> = { store: '#047857', plan: '#3B4CCA', dock: '#6D28D9', run: '#0369A1' };

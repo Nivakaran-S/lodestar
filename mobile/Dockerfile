@@ -6,6 +6,10 @@ WORKDIR /app
 COPY package*.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --fetch-retries=10 --fetch-retry-maxtimeout=600000 --fetch-timeout=600000
 COPY . .
+# Lodestar Run (the driver's screens) is an Android app: left out of the browser build unless RUN_ON_WEB=true
+# (docker-compose.yml sets it for the local stack, so the e2e suite can drive a run in a browser)
+ARG RUN_ON_WEB=false
+ENV EXPO_PUBLIC_RUN_ON_WEB=$RUN_ON_WEB
 # the web export, then its service worker listing the app shell to cache for offline use (scripts/build-sw.js)
 RUN npx expo export --platform web --output-dir dist && node scripts/build-sw.js dist
 

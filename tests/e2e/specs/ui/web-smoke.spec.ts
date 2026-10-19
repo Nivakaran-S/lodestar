@@ -34,9 +34,12 @@ test.describe('Web · desk faces', () => {
   test('the start page offers every role', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1, name: 'Waypoint Lodestar' })).toBeVisible();
-    for (const [role, href] of [['Store manager', '/store'], ['Dispatcher', '/plan'], ['Loader', '/field/s/ld-06-sign-in'], ['Driver', '/field/s/dr-06-sign-in'], ['Admin', '/admin']]) {
+    for (const [role, href] of [['Store manager', '/store/sm-26-sign-in'], ['Dispatcher', '/plan/dsp-06-sign-in'], ['Loader', '/field/s/ld-06-sign-in'], ['Admin', '/admin/adm-01-sign-in']]) {
       await expect(page.getByRole('link', { name: new RegExp(`^${role}:`) })).toHaveAttribute('href', href);
     }
+    // Lodestar Run is the driver's Android app: its card has no way into the browser
+    await expect(page.getByRole('link', { name: /^Driver:/ })).toHaveCount(0);
+    await expect(page.locator('[data-role="run"]')).toContainText('Android app');
   });
 
   test('/screens lists the three faces and their screens', async ({ page }) => {

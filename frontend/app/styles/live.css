@@ -183,3 +183,10 @@ textarea.lv-input { resize: vertical; min-height: 64px; }
   .b-P1 .s-drawer__foot .lv-link { padding: 0; }
 }
 @media (max-width: 899px) and (prefers-reduced-motion: reduce) { .b-P1 .s-drawer, .b-P1 .s-drawer.is-open { transition: none; } }
+
+/* Lodestar Store desk: the page scrolls at every width (a long order list is never cut off at the window's height)
+   and the top bar stays at the top while it does. The frame clips instead of hiding its overflow, so it is not a
+   scroll container and the bar sticks to the window. */
+.web-screen.b-P1 > .frame { height: auto !important; min-height: 100vh; overflow: clip; }
+.b-P1 .s-shell { min-height: 100vh; }
+.b-P1 .s-top { position: sticky; top: 0; z-index: 40; }

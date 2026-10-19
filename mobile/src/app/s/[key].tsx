@@ -6,6 +6,7 @@ import { FACES, SCREENS } from '@/screens/registry';
 import { themedKey, useSettings } from '@/lib/settings';
 import { dockVariant, useWebWidth, useWideWeb } from '@/lodestar/dock-variant';
 import { DockDesktopShell, ownsWideLayout } from '@/lodestar/dock-desktop-shell';
+import { runAvailable } from '@/lib/config';
 
 // Screens are loaded once and kept, so a screen's component identity is stable across renders.
 const loaded = new Map<string, ComponentType>();
@@ -56,6 +57,7 @@ export default function ScreenRoute() {
   const { theme } = useSettings();
   const key = asked ? themedKey(asked, theme) : asked;
   const screen = key ? screenFor(key) : undefined;
+  if (key?.startsWith('dr-') && !runAvailable()) return <RunIsAnAndroidApp />;
   if (!screen) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: '#0B1020' }}>
@@ -66,6 +68,21 @@ export default function ScreenRoute() {
   }
   if (variant !== asked) return <View style={{ flex: 1, backgroundColor: '#F4F5F9' }} />;
   return <PhoneColumn screen={key!}>{createElement(screen)}</PhoneColumn>;
+}
+
+// Lodestar Run on the web: drivers use the Android app (lib/config.ts, RUN_ON_WEB).
+function RunIsAnAndroidApp() {
+  return (
+    <View testID="run-android-only" style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, padding: 32, backgroundColor: '#0B1020' }}>
+      <Text style={{ color: '#F2F4FA', fontFamily: 'Inter_800ExtraBold', fontSize: 22, textAlign: 'center' }}>Lodestar Run is an Android app</Text>
+      <Text style={{ color: '#B9C0D4', fontFamily: 'Inter_500Medium', fontSize: 15, lineHeight: 22, textAlign: 'center', maxWidth: 420 }}>
+        Drivers run the day on their phone: the run stays on it with no signal, the photo and signature are taken there, and
+        everything syncs when the signal is back. Open the Lodestar app on your Android phone and sign in with your phone number.
+      </Text>
+      {/* the website's start page, outside the field app's /field base path */}
+      <Text role="link" onPress={() => window.location.assign('/')} style={{ color: '#F5B83D', fontFamily: 'Inter_600SemiBold', fontSize: 15 }}>Back to Waypoint Lodestar</Text>
+    </View>
+  );
 }
 
 // Static web export: pre-render every screen route.

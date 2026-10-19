@@ -30,13 +30,21 @@ describe('Start page · pick a role', () => {
     ['Store manager', '/store/sm-26-sign-in', '77 456 7890 + code'],
     ['Dispatcher', '/plan/dsp-06-sign-in', 'nilanthi@waypoint.lk'],
     ['Loader', '/field/s/ld-06-sign-in', 'KDY-0427 · PIN 2468'],
-    ['Driver', '/field/s/dr-06-sign-in', '77 345 6789 + code'],
     ['Admin', '/admin/adm-01-sign-in', 'admin'],
   ])('offers the %s app at %s, signed in with %s', (role, href, persona) => {
     render(<Home />);
     const link = screen.getByRole('link', { name: new RegExp(`^${role}:`) });
     expect(link).toHaveAttribute('href', href);
     expect(link.closest('[data-role]')).toHaveTextContent(`Sign in with ${persona}`);
+  });
+
+  it('shows the driver as an Android app, with no link into the browser', () => {
+    render(<Home />);
+    expect(screen.queryByRole('link', { name: /^Driver:/ })).not.toBeInTheDocument();
+    const card = screen.getByLabelText('Driver: Lodestar Run').closest('[data-role]')!;
+    expect(card).toHaveTextContent('Android app');
+    expect(card).toHaveTextContent('Sign in with 77 345 6789 + code');
+    expect(card.querySelector('a')).toBeNull();
   });
 
   it('offers the store phone app and the design screen directory', () => {

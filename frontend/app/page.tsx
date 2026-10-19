@@ -15,7 +15,8 @@ type Role = {
   face: string;
   role: string;
   text: string;
-  href: string;
+  /** The role's sign-in on this website; none for Lodestar Run, which is an Android app only. */
+  href?: string;
   persona: string;
   color: string;
   device: string;
@@ -41,8 +42,8 @@ const ROLES: Role[] = [
     icon: <><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><path d="M3.3 7 12 12l8.7-5M12 22V12" /></>,
   },
   {
-    key: "run", face: "Lodestar Run", role: "Driver", text: "Follow the route and record every stop with proof of delivery, even with no signal.",
-    href: "/field/s/dr-06-sign-in", persona: "77 345 6789 + code", color: "#0369A1", device: "Phone, works offline",
+    key: "run", face: "Lodestar Run", role: "Driver", text: "Follow the route and record every stop with proof of delivery, even with no signal. Runs on the driver's Android phone, not in the browser.",
+    persona: "77 345 6789 + code", color: "#0369A1", device: "Android app",
     icon: <path d="m3 11 19-9-9 19-2-8-8-2z" />,
   },
 ];
@@ -109,22 +110,29 @@ function Go({ href, className, label, children }: { href: string; className: str
 }
 
 function RoleCard({ r, compact = false }: { r: Role; compact?: boolean }) {
+  const head = (
+    <>
+      <Icon color={r.color} size={compact ? 40 : 44}>{r.icon}</Icon>
+      <span className="hm-card__titles">
+        <b>{r.role}</b>
+        <span>{r.face}</span>
+      </span>
+      <span className="hm-card__device">{r.device}</span>
+    </>
+  );
   return (
     <div className={`hm-card${compact ? " hm-card--compact" : ""}`} data-role={r.key} style={{ ["--role" as string]: r.color }}>
-      <Go href={r.href} className="hm-card__head" label={`${r.role}: ${r.face}`}>
-        <Icon color={r.color} size={compact ? 40 : 44}>{r.icon}</Icon>
-        <span className="hm-card__titles">
-          <b>{r.role}</b>
-          <span>{r.face}</span>
-        </span>
-        <span className="hm-card__device">{r.device}</span>
-      </Go>
+      {r.href
+        ? <Go href={r.href} className="hm-card__head" label={`${r.role}: ${r.face}`}>{head}</Go>
+        : <div className="hm-card__head" aria-label={`${r.role}: ${r.face}`}>{head}</div>}
       <p className="hm-card__desc">{r.text}</p>
       <div className="hm-card__foot">
         <span className="hm-card__persona">Sign in with <code>{r.persona}</code></span>
         <span className="hm-card__actions">
           {r.also && <Go href={r.also.href} className="hm-card__also">{r.also.label}</Go>}
-          <Go href={r.href} className="hm-card__cta">Open <span aria-hidden="true">→</span></Go>
+          {r.href
+            ? <Go href={r.href} className="hm-card__cta">Open <span aria-hidden="true">→</span></Go>
+            : <span className="hm-card__also">On the phone</span>}
         </span>
       </div>
     </div>
@@ -174,7 +182,7 @@ export default function Home() {
       <section className="hm-wrap hm-section" id="roles" aria-labelledby="roles-title">
         <div className="hm-section__head">
           <h2 id="roles-title">Choose your role</h2>
-          <p>Each role signs in to its own app. Dock and Run are phone apps and work in any browser.</p>
+          <p>Each role signs in to its own app. The Dock works on a phone, a bay tablet or any browser; Lodestar Run is the driver's Android app.</p>
         </div>
         <nav className="hm-grid" aria-label="Roles">
           {ROLES.map(r => <RoleCard key={r.key} r={r} />)}
