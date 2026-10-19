@@ -1,12 +1,12 @@
 import { createElement, useEffect, type ComponentType, type ReactNode } from 'react';
 import { Text, View, useWindowDimensions } from 'react-native';
-import { Link, router, useLocalSearchParams } from 'expo-router';
+import { Link, Redirect, router, useLocalSearchParams } from 'expo-router';
 
 import { FACES, SCREENS } from '@/screens/registry';
 import { themedKey, useSettings } from '@/lib/settings';
 import { dockVariant, useWebWidth, useWideWeb } from '@/lodestar/dock-variant';
 import { DockDesktopShell, ownsWideLayout } from '@/lodestar/dock-desktop-shell';
-import { runAvailable } from '@/lib/config';
+import { DRIVER_APP_START, runAvailable, screenInApp } from '@/lib/config';
 
 // Screens are loaded once and kept, so a screen's component identity is stable across renders.
 const loaded = new Map<string, ComponentType>();
@@ -58,6 +58,8 @@ export default function ScreenRoute() {
   const key = asked ? themedKey(asked, theme) : asked;
   const screen = key ? screenFor(key) : undefined;
   if (key?.startsWith('dr-') && !runAvailable()) return <RunIsAnAndroidApp />;
+  // the driver's app has only Run's screens: anything else opens Run
+  if (key && !screenInApp(key)) return <Redirect href={{ pathname: '/s/[key]', params: { key: DRIVER_APP_START } }} />;
   if (!screen) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: '#0B1020' }}>

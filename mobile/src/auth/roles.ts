@@ -1,5 +1,6 @@
 // Where each role lands after sign-in, and which design screens show access problems.
 import type { Claims, Role } from './claims';
+import { DRIVER_APP } from '@/lib/config';
 
 export type Face = 'run' | 'dock' | 'store' | 'plan';
 
@@ -21,6 +22,8 @@ export function faceOf(claims?: Pick<Claims, 'roles'> | null): Face | null {
 
 /** The first screen after sign-in (a key of src/screens/registry.ts). */
 export function homeFor(claims: Pick<Claims, 'roles'> | null | undefined, width: number): string | null {
+  // the driver's app (lib/config.ts DRIVER_APP) signs in drivers only; every other role uses the website
+  if (DRIVER_APP && faceOf(claims) !== 'run') return null;
   switch (faceOf(claims)) {
     case 'run':
       return 'dr-01-today-s-run';
@@ -52,7 +55,7 @@ export const ACCESS_REQUEST_SCREEN = 'sm-32-access-request-sent';
 /** The design's access screens: "session expired" and "can't sign in". */
 export function accessScreenFor(face: Face | null, kind: ProblemKind): string {
   const expired = kind === 'expired';
-  switch (face) {
+  switch (DRIVER_APP ? 'run' : face) {
     case 'run':
       return expired ? 'dr-30-session-expired-while-offline' : 'dr-29-can-t-sign-in';
     case 'dock':

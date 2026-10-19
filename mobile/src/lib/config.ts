@@ -64,3 +64,18 @@ export const RUN_ON_WEB = process.env.EXPO_PUBLIC_RUN_ON_WEB === 'true';
 export function runAvailable(): boolean {
   return Platform.OS !== 'web' || RUN_ON_WEB;
 }
+
+/**
+ * The phone app is Lodestar Run only: a build with EXPO_PUBLIC_DRIVER_APP=true (the Android build) opens the
+ * driver's app, signs in drivers only and has no Store, Plan or Dock screens. Those faces stay on the website.
+ */
+export const DRIVER_APP = process.env.EXPO_PUBLIC_DRIVER_APP === 'true';
+
+/** The driver's app start (its splash), and the screens it may show besides the driver's own. */
+export const DRIVER_APP_START = 'dr-05-splash';
+const DRIVER_APP_SHARED = new Set(['sm-32-access-request-sent']);
+
+/** True when this build may show the screen: every screen, or in the driver's app only Run's and the shared ones. */
+export function screenInApp(key: string): boolean {
+  return !DRIVER_APP || key.startsWith('dr-') || DRIVER_APP_SHARED.has(key);
+}

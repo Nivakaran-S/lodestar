@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 
 import { FACES, FLOWS, LIVE } from '@/screens/registry';
 import { goHome } from '@/auth/use-sign-in';
 import { useOutbox, useSession } from '@/model/hooks';
 import { session } from '@/model/platform';
-import { runAvailable } from '@/lib/config';
+import { DRIVER_APP, DRIVER_APP_START, runAvailable } from '@/lib/config';
 
 const live = new Set(LIVE);
 // Only screens that run on real data are opened from here; the design-only mocks stay out of navigation.
@@ -57,7 +57,12 @@ function SessionCard() {
   );
 }
 
+// The driver's app (lib/config.ts DRIVER_APP) has no app picker: it opens Lodestar Run.
 export default function Home() {
+  return DRIVER_APP ? <Redirect href={{ pathname: '/s/[key]', params: { key: DRIVER_APP_START } }} /> : <FieldHome />;
+}
+
+function FieldHome() {
   const [expanded, setExpanded] = useState<string | null>(null);
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0B1020' }}>

@@ -62,12 +62,13 @@ The driver's app runs on Android only. It is the same Expo code as the field app
 
 ```bash
 cd mobile
-EXPO_PUBLIC_API_URL=https://waypoint-lodestar.eastasia.cloudapp.azure.com npx expo prebuild -p android
-cd android && ./gradlew assembleRelease          # app/build/outputs/apk/release/app-release.apk
+npx expo prebuild -p android
+cd android
+EXPO_PUBLIC_API_URL=https://waypoint-lodestar.eastasia.cloudapp.azure.com EXPO_PUBLIC_DRIVER_APP=true   ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a   # app/build/outputs/apk/release/app-release.apk
 adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
-Open **Lodestar** on the phone, choose **Lodestar Run** and sign in with the driver's phone number and the code shown on screen. For a local stack, leave `EXPO_PUBLIC_API_URL` out and use `adb reverse tcp:8443 tcp:8443`.
+`EXPO_PUBLIC_DRIVER_APP=true` makes it the driver's app only: it opens Lodestar Run, signs in drivers only and has no Store, Plan or Dock screens (those stay on the website). `-PreactNativeArchitectures=arm64-v8a` builds for current phones only; the first build compiles the native code and takes a while. Open **Lodestar** on the phone and sign in with the driver's phone number and the code shown on screen. For a local stack, leave `EXPO_PUBLIC_API_URL` out and use `adb reverse tcp:8443 tcp:8443`.
 
 ## Judge walkthrough
 
@@ -93,7 +94,7 @@ Open the start page in a desktop browser. For the loader, use a phone, or the br
 
 **Driver: deliver with proof (Android app)**
 
-11. Open the **Lodestar** app on the Android phone, choose **Lodestar Run** and sign in with phone `77 345 6789` and the code shown on screen. Today's run (DR-01) shows VEH057's stops with their ETAs. Press **Start trip**.
+11. Open the **Lodestar** app (Lodestar Run) on the Android phone and sign in with phone `77 345 6789` and the code shown on screen. Today's run (DR-01) shows VEH057's stops with their ETAs. Press **Start trip**.
 12. At OUT106: **Arrived**, then **Start delivery** (DR-02), count the units, capture the receiver's name and **signature**, record any exception, then **Complete stop** (DR-03). No signature? **Use store OTP** (DR-16).
 13. Offline (the app must have opened once online on that phone): switch the phone to airplane mode before the next stop. Complete it with the proof of delivery and a photo (DR-20); everything waits in the phone's outbox. Reconnect: the outbox sends once, in order, and the records reconcile without duplicates. If the office changed the same stop meanwhile, the dispatcher sees the conflict on the reconcile screen (DSP-A2) and the field evidence wins.
 
