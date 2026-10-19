@@ -182,7 +182,7 @@ export default function Home() {
       <section className="hm-wrap hm-section" id="roles" aria-labelledby="roles-title">
         <div className="hm-section__head">
           <h2 id="roles-title">Choose your role</h2>
-          <p>Each role signs in to its own app. The Dock works on a phone, a bay tablet or any browser; Lodestar Run is the driver's Android app.</p>
+          <p>Each role signs in to its own app. The Dock works on a phone, a bay tablet or any browser; Lodestar Run is the driver&apos;s Android app.</p>
         </div>
         <nav className="hm-grid" aria-label="Roles">
           {ROLES.map(r => <RoleCard key={r.key} r={r} />)}
