@@ -52,7 +52,7 @@ describe('SM-01 Place order', () => {
     fireEvent.change(screen.getAllByLabelText('kg per unit')[1], { target: { value: '2' } });
     fireEvent.click(within(screen.getByTestId('lines-chilled')).getByText('Add'));
     expect(screen.getByText('Yoghurt 80 g')).toBeInTheDocument();
-    expect(screen.getByTestId('order-summary')).toHaveTextContent('2 orders · 21 units');
+    expect(screen.getByTestId('order-summary')).toHaveTextContent('2 orders · 3 items · 21 units');
 
     fireEvent.click(screen.getByTestId('submit-order'));
     await waitFor(() => expect(router.push).toHaveBeenCalledWith('/store/sm-27-orders-and-history'));

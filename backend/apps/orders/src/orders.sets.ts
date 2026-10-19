@@ -43,6 +43,8 @@ function validateLineItems(raw: unknown): LineItemInput[] {
   abac: orderAbac,
   navigation: ['outlet', 'lineItems', 'tripStop', 'deferralLog'],
   expandPaths: ['tripStop/trip', 'tripStop/pod'],
+  // the store's "Credited" filter (SM-27): a credit note on the order or on its proof of delivery
+  filterPaths: ['tripStop/pod'],
   search: ['id', 'notes', 'outlet/name'],
   // orderedAt: when the phone saved it (honoured for the cut-off only within the offline grace window)
   insertable: ['id', 'outletId', 'runDate', 'brand', 'tempClass', 'units', 'kg', 'm3', 'notes', 'lineItems', 'orderedAt', 'lateReason'],

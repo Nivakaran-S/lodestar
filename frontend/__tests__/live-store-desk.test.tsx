@@ -112,7 +112,7 @@ describe('SM-01 Place order', () => {
     expect(screen.getByText(/first order/)).toBeInTheDocument();
     expect(within(dry).getByText('No lines yet')).toBeInTheDocument();
     expect(within(screen.getByTestId('lines-chilled')).getByText('No lines yet')).toBeInTheDocument();
-    expect(screen.getByTestId('order-summary')).toHaveTextContent('0 orders · 0 units · 0 kg');
+    expect(screen.getByTestId('order-summary')).toHaveTextContent('0 orders · 0 items · 0 units · 0 kg');
     expect(disabled(screen.getByTestId('submit-order'))).toBe(true);
 
     const add = within(dry).getByText('Add');
@@ -140,7 +140,7 @@ describe('SM-01 Place order', () => {
     expect(name).toHaveValue('');
     expect(kg).toHaveValue('');
     expect(screen.getByLabelText('Rice 5 kg quantity')).toHaveTextContent('1');
-    expect(screen.getByTestId('order-summary')).toHaveTextContent('1 order · 1 units · 5 kg');
+    expect(screen.getByTestId('order-summary')).toHaveTextContent('1 order · 1 item · 1 units · 5 kg');
     expect(screen.getByTestId('submit-order')).toHaveTextContent('Submit 1 order');
     expect(disabled(screen.getByTestId('submit-order'))).toBe(false);
 
@@ -149,7 +149,7 @@ describe('SM-01 Place order', () => {
     expect(screen.getByLabelText('Rice 5 kg quantity')).toHaveTextContent('0');
     fireEvent.click(screen.getByTitle('Less Rice 5 kg'));
     expect(screen.getByLabelText('Rice 5 kg quantity')).toHaveTextContent('0');
-    expect(screen.getByTestId('order-summary')).toHaveTextContent('0 orders · 0 units');
+    expect(screen.getByTestId('order-summary')).toHaveTextContent('0 orders · 0 items · 0 units');
     expect(disabled(screen.getByTestId('submit-order'))).toBe(true);
   });
 
@@ -167,7 +167,7 @@ describe('SM-01 Place order', () => {
     fireEvent.click(screen.getByTitle('Less Dhal 1 kg'));
     fireEvent.click(screen.getByTitle('Less Dhal 1 kg'));
     fireEvent.click(screen.getByTitle('Less Milk 1 L'));
-    expect(screen.getByTestId('order-summary')).toHaveTextContent('1 order · 10 units · 50 kg');
+    expect(screen.getByTestId('order-summary')).toHaveTextContent('1 order · 1 item · 10 units · 50 kg');
     fireEvent.click(screen.getByTestId('submit-order'));
     await waitFor(() => expect(router.push).toHaveBeenCalledWith('/store/sm-27-orders-and-history'));
     expect(posts(view.calls)).toHaveLength(1);

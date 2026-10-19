@@ -155,7 +155,10 @@ export default function LiveSm01PlaceOrder() {
   });
   const d = sum(dryLines);
   const ch = sum(chilledLines);
+  // one order per temperature class (dry and chilled travel apart), each with its item lines
   const orders = [d.units ? 1 : 0, ch.units ? 1 : 0].reduce((a, b) => a + b, 0);
+  const items = [...dryLines, ...chilledLines].filter(l => l.qty > 0).length;
+  const itemsLabel = `${items} item${items === 1 ? '' : 's'}`;
   const cutoff = cutoffFor(runDate);
   const msLeft = cutoff.getTime() - next.now;
   const late = msLeft <= 0;
@@ -233,12 +236,12 @@ export default function LiveSm01PlaceOrder() {
             </div>
             <div className="vstack" style={{ gap: '2px', alignItems: 'flex-end', marginRight: '4px' }}>
               <span className="fw7" style={{ fontSize: '14px', color: 'var(--text)' }} data-testid="order-summary">
-                {orders} order{orders === 1 ? '' : 's'} · {d.units + ch.units} units · {fmtNum(d.kg + ch.kg)} kg · {fmtNum((d.kg + ch.kg) * ratio, 1)} m³
+                {orders} order{orders === 1 ? '' : 's'} · {itemsLabel} · {d.units + ch.units} units · {fmtNum(d.kg + ch.kg)} kg · {fmtNum((d.kg + ch.kg) * ratio, 1)} m³
               </span>
               <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>{"\"Received\" with order numbers at once"}</span>
             </div>
             <Btn className="d-btn d-btn--primary" style={{ padding: '0 20px' }} testId="submit-order" busy={submit.pending} disabled={!orders || !o || Boolean(moved) || closedDay || dispatchClosed} onClick={() => void submit.run()}>
-              <Ic n="send" />Submit {orders} order{orders === 1 ? '' : 's'}
+              <Ic n="send" />Submit {orders} order{orders === 1 ? '' : 's'}{items ? ` · ${itemsLabel}` : ''}
             </Btn>
           </div>
           <ErrorBanner error={submit.error ?? history.error ?? outlet.error} onRetry={history.error ? history.refresh : undefined} />

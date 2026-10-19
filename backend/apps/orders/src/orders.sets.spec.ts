@@ -1,5 +1,6 @@
 import { anything, capture, instance, mock, verify, when } from 'ts-mockito';
-import { ODataError } from '@lodestar/odata';
+import { Prisma } from '@prisma/client';
+import { buildEdmModel, DmmfDatamodel, entitySetOptions, ODataError, parseQueryOptions, QueryBuilder } from '@lodestar/odata';
 import { nextOrderableRunDate, toBusinessDate } from '@lodestar/platform';
 import { personas } from '../../../libs/security/test/principals';
 import { depotDelegate } from '../../../libs/odata/test/depots';
@@ -234,5 +235,17 @@ describe('OrdersSet', () => {
       await expect(set.orderWindow({ principal: personas.fathima, params: { runDate: '2026-10-05' }, headers: {} })).resolves.toEqual({ closed: true });
       await expect(set.orderWindow({ principal: personas.nilanthi, params: { runDate: '2026-10-05' }, headers: {} })).rejects.toMatchObject({ status: 400, target: 'depot' });
     });
+  });
+});
+
+describe('OrdersSet query policy', () => {
+  it("accepts the store's Credited filter (SM-27): a credit note on the order or on its proof of delivery", () => {
+    const model = buildEdmModel(Prisma.dmmf.datamodel as unknown as DmmfDatamodel);
+    const o = entitySetOptions(OrdersSet)!;
+    const builder = new QueryBuilder(model, model.entityTypes.get('Order')!, {
+      navigation: o.navigation ?? [], search: o.search ?? [], hidden: {}, expandPaths: o.expandPaths, filterPaths: o.filterPaths,
+    });
+    const plan = builder.build(parseQueryOptions("$filter=outletId eq 'OUT106' and (creditNoteId ne null or tripStop/pod/creditNoteId ne null)&$expand=tripStop"));
+    expect(JSON.stringify(plan.where)).toContain('"pod":{"is":{"creditNoteId":{"not":null}}}');
   });
 });
