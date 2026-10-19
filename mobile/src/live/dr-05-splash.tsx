@@ -3,6 +3,7 @@
 import { Text, View, StyleSheet } from 'react-native';
 import { useSplash } from '@/lodestar/live';
 import { Frame, Grad, Icon, Scroll, type ScreenNav, type GradSpec } from '@/lodestar/runtime';
+import { themed } from '@/lodestar/day-theme';
 
 // No timed hop here: useSplash() opens the role's first screen when signed in, else the sign-in screen.
 const nav: ScreenNav = {"links":{}};
@@ -60,7 +61,7 @@ const X1 = "<svg width=\"64\" height=\"64\" viewBox=\"0 0 32 32\" fill=\"#000000
 const G0: GradSpec[] = [{"type":"linear","angle":180,"at":null,"repeat":false,"stops":[{"c":"#050919","p":0},{"c":"#0c1238","p":0.45},{"c":"#1a2463","p":1}]}];
 const G1: GradSpec[] = [{"type":"linear","angle":90,"at":null,"repeat":false,"stops":[{"c":"#ffd37a","p":0},{"c":"#f5b83d","p":1}]}];
 
-const s = StyleSheet.create({
+const s = themed(StyleSheet.create({
   v0: {"flexDirection":"column","alignItems":"stretch","backgroundColor":"#0a0f1e","flex":1},
   v1: {"position":"absolute","top":90,"right":331,"bottom":507,"left":40,"width":3,"height":3,"backgroundColor":"#ffffff","borderRadius":1.5,"opacity":0.7},
   v2: {"position":"absolute","top":150,"right":275,"bottom":447,"left":96,"width":3,"height":3,"backgroundColor":"#ffffff","borderRadius":1.5,"opacity":0.4},
@@ -88,4 +89,4 @@ const s = StyleSheet.create({
   t24: {"color":"#7f89b8","fontSize":13,"lineHeight":19.5,"fontFamily":"Inter_600SemiBold"},
   v25: {"flexDirection":"column","alignItems":"center","rowGap":12,"columnGap":12,"paddingBottom":22},
   v26: {"flexDirection":"column","alignItems":"stretch","flexGrow":1,"flexShrink":1,"flexBasis":"0%"},
-});
+}));

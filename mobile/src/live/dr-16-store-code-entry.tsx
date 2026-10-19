@@ -9,6 +9,8 @@ import { afterPod } from '@/model/run';
 import { dailyStoreCode, reportToDispatch, stopContext } from '@/model/field-reports';
 import { useOnline, useParam, useStop } from '@/model/hooks';
 import { Frame, Grad, Icon, Scroll, Tap, showToast, type ScreenNav, type GradSpec, type Target } from '@/lodestar/runtime';
+import { themed } from '@/lodestar/day-theme';
+import { DRIVER_APP } from '@/lib/config';
 
 const nav: ScreenNav = {"links":{"L258":{"to":"dr-19-stop-2-arrival-hawa-eliya","kind":"go"},"B":{"to":"dr-03-proof-of-delivery","kind":"back"}}};
 
@@ -109,7 +111,7 @@ export default function ScreenDr16StoreCodeEntry() {
             disabled={!!stop && !match}
             to={target}
             onPress={async () => {
-              if (!stop || !order) return true; // prototype mode: just navigate
+              if (!stop || !order) return !DRIVER_APP; // nothing loaded: the driver's app stays put; a design preview follows the prototype
               const units = unitsParam !== undefined && Number.isFinite(Number(unitsParam)) ? Number(unitsParam) : order.units;
               await completeStop(stop, {
                 unitsDelivered: units,
@@ -160,7 +162,7 @@ const X4 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#111522\" stroke-w
 const X5 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#b5bdd1\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\" width=\"26\" height=\"26\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z\" fill=\"none\" stroke=\"#b5bdd1\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path><path d=\"m18 9-6 6M12 9l6 6\" fill=\"none\" stroke=\"#b5bdd1\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path></svg>";
 const G0: GradSpec[] = [{"type":"linear","angle":135,"at":null,"repeat":false,"stops":[{"c":"#ffd37a","p":0},{"c":"#f5b83d","p":0.6},{"c":"#eda422","p":1}]}];
 
-const s = StyleSheet.create({
+const s = themed(StyleSheet.create({
   v0: {"flexDirection":"column","alignItems":"stretch","backgroundColor":"#0a0f1e","flex":1},
   v1: {"flexShrink":0,"overflow":"hidden"},
   v2: {"flexDirection":"row","justifyContent":"center","alignItems":"center","flexShrink":0,"width":40,"height":40,"backgroundColor":"#1a2340","borderRadius":20},
@@ -196,4 +198,4 @@ const s = StyleSheet.create({
   v32: {"flexDirection":"row","justifyContent":"center","alignItems":"center","flexGrow":1,"flexShrink":1,"flexBasis":"0%","height":56,"borderRadius":14},
   v33: {"flexDirection":"column","alignItems":"stretch","rowGap":8,"columnGap":8,"flexShrink":0,"paddingTop":10,"paddingRight":12,"paddingBottom":4,"paddingLeft":12,"backgroundColor":"#0a0f1e","borderTopWidth":1,"borderTopColor":"#1b2338"},
   v34: {"flexDirection":"column","alignItems":"stretch","flexGrow":1,"flexShrink":1,"flexBasis":"0%","backgroundColor":"#070b16"},
-});
+}));

@@ -3,7 +3,8 @@ import { Text, View, useWindowDimensions } from 'react-native';
 import { Link, Redirect, router, useLocalSearchParams } from 'expo-router';
 
 import { FACES, SCREENS } from '@/screens/registry';
-import { themedKey, useSettings } from '@/lib/settings';
+import { isDaylight, themedKey, useSettings } from '@/lib/settings';
+import { setDayMode } from '@/lodestar/day-theme';
 import { dockVariant, useWebWidth, useWideWeb } from '@/lodestar/dock-variant';
 import { DockDesktopShell, ownsWideLayout } from '@/lodestar/dock-desktop-shell';
 import { DRIVER_APP_START, runAvailable, screenInApp } from '@/lib/config';
@@ -69,7 +70,11 @@ export default function ScreenRoute() {
     );
   }
   if (variant !== asked) return <View style={{ flex: 1, backgroundColor: '#F4F5F9' }} />;
-  return <PhoneColumn screen={key!}>{createElement(screen)}</PhoneColumn>;
+  // Day or night for every driver screen: a designed daylight variant draws itself; any other driver screen is its
+  // night design in the daylight palette (lodestar/day-theme.ts). A change of mode remounts the screen.
+  const day = key!.startsWith('dr-') && !key!.endsWith('-daylight') && isDaylight(theme);
+  setDayMode(day);
+  return <PhoneColumn key={day ? 'day' : 'night'} screen={key!}>{createElement(screen)}</PhoneColumn>;
 }
 
 // Lodestar Run on the web: drivers use the Android app (lib/config.ts, RUN_ON_WEB).

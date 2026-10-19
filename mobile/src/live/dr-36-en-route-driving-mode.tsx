@@ -9,6 +9,8 @@ import { openMaps, useNet } from '@/model/run';
 import { LATE_RISK_PCT } from '@/model/preferences';
 import { Frame, Grad, Icon, Scroll, Tap, type ScreenNav, type GradSpec } from '@/lodestar/runtime';
 import { useDepots } from '@/model/depots';
+import { themed } from '@/lodestar/day-theme';
+import { DRIVER_APP } from '@/lib/config';
 
 const nav: ScreenNav = {"links":{"L13":{"to":"dr-02-stop-arrival","kind":"go"},"L245":{"to":"dr-38-report-a-delay","kind":"go"},"L246":{"to":"dr-37-reefer-temperature-alert","kind":"go"}}};
 
@@ -53,7 +55,7 @@ export default function ScreenDr36EnRouteDrivingMode() {
           <Tap lk="L246" style={s.v7}>
             <Icon xml={X1} width={18} height={18} style={s.v1} />
             <View style={s.v5}>
-              <Text style={s.t4} numberOfLines={1} testID="reefer-temp">{reefer !== null ? `Reefer ${reefer} °C` : 'Reefer —'}</Text>
+              <Text style={s.t4} numberOfLines={1} testID="reefer-temp">{reefer !== null ? `Reefer ${reefer}\u00a0°C` : 'Reefer —'}</Text>
             </View>
             {reefer !== null ? <Text style={s.t6} numberOfLines={1}>{reeferOk ? '· OK' : '· check'}</Text> : null}
           </Tap>
@@ -143,6 +145,7 @@ export default function ScreenDr36EnRouteDrivingMode() {
           <Tap
             lk="L13"
             style={s.v49}
+            disabled={DRIVER_APP && !stop && !trip}
             to={arriveTo}
             onPress={async () => {
               // TripStops Arrive (queued; sent with the next sync)
@@ -154,7 +157,8 @@ export default function ScreenDr36EnRouteDrivingMode() {
             <Text style={s.t48}>{stop ? `Arrived at stop ${seq}` : trip ? 'Run complete' : 'Arrived at stop'}</Text>
           </Tap>
           <View style={s.v51}>
-            <Text style={s.t50}>{"Tap when parked · unlocks when the van stops"}</Text>
+            {/* the design locked this button while the van moves; this build reads no motion, so it is always ready */}
+            <Text style={s.t50}>{"Tap once you have parked at the stop"}</Text>
           </View>
           <Tap lk="L245" style={s.v53} to={stop ? { to: 'dr-38-report-a-delay', params: { stop: stop.id } } : undefined}>
             <Icon xml={X7} width={22} height={22} style={s.v1} />
@@ -176,7 +180,7 @@ const X6 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#111522\" stroke-w
 const X7 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#f2f4fa\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\" width=\"22\" height=\"22\" xmlns=\"http://www.w3.org/2000/svg\"><circle cx=\"12\" cy=\"12\" r=\"10\" fill=\"none\" stroke=\"#f2f4fa\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></circle><path d=\"M12 6v6l4 2\" fill=\"none\" stroke=\"#f2f4fa\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path></svg>";
 const G0: GradSpec[] = [{"type":"linear","angle":135,"at":null,"repeat":false,"stops":[{"c":"#ffd37a","p":0},{"c":"#f5b83d","p":0.6},{"c":"#eda422","p":1}]}];
 
-const s = StyleSheet.create({
+const s = themed(StyleSheet.create({
   v0: {"flexDirection":"column","alignItems":"stretch","backgroundColor":"#0a0f1e","flex":1},
   v1: {"flexShrink":0,"overflow":"hidden"},
   t2: {"color":"#b5bdd1","fontSize":14,"lineHeight":21,"fontFamily":"Inter_700Bold"},
@@ -226,11 +230,11 @@ const s = StyleSheet.create({
   v46: {"flexDirection":"column","alignItems":"stretch","rowGap":20,"columnGap":20,"paddingTop":6,"paddingRight":20,"paddingBottom":8,"paddingLeft":20},
   v47: {"borderRadius":18},
   t48: {"color":"#111522","fontSize":17,"lineHeight":25.5,"letterSpacing":-0.2,"fontFamily":"PlusJakartaSans_800ExtraBold"},
-  v49: {"flexDirection":"row","justifyContent":"center","alignItems":"center","rowGap":10,"columnGap":10,"height":58,"borderRadius":18,"opacity":0.5},
+  v49: {"flexDirection":"row","justifyContent":"center","alignItems":"center","rowGap":10,"columnGap":10,"height":58,"borderRadius":18},
   t50: {"color":"#7f89a3","fontSize":13,"lineHeight":18.2,"textAlign":"center","fontFamily":"Inter_600SemiBold"},
   v51: {"flexDirection":"row","justifyContent":"center","alignItems":"center","rowGap":6,"columnGap":6},
   t52: {"color":"#f2f4fa","fontSize":17,"lineHeight":25.5,"letterSpacing":-0.2,"fontFamily":"PlusJakartaSans_800ExtraBold"},
   v53: {"flexDirection":"row","justifyContent":"center","alignItems":"center","rowGap":10,"columnGap":10,"height":58,"backgroundColor":"#1a2340","borderRadius":18,"boxShadow":"rgba(0, 0, 0, 0.08) 0px 1px 2px 0px"},
   v54: {"flexDirection":"column","alignItems":"stretch","rowGap":8,"columnGap":8,"flexShrink":0,"paddingTop":12,"paddingRight":16,"paddingBottom":6,"paddingLeft":16,"backgroundColor":"#070b16"},
   v55: {"flexDirection":"column","alignItems":"stretch","flexGrow":1,"flexShrink":1,"flexBasis":"0%","backgroundColor":"#070b16"},
-});
+}));

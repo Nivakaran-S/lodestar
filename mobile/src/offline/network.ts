@@ -12,9 +12,32 @@ function setOnline(online: boolean) {
   network.set({ online, since: new Date().toISOString() });
 }
 
+// A failed call while the OS still has a link (a timeout, a slow server) must not leave the app offline: screens
+// do not fetch while offline, so no call would ever succeed to bring it back. Try again after a pause, backing off
+// while the server keeps failing; any success or an OS change resets it.
+const RETRY_FIRST_MS = 10_000;
+const RETRY_MAX_MS = 60_000;
+let retryMs = RETRY_FIRST_MS;
+let retry: ReturnType<typeof setTimeout> | undefined;
+function clearRetry() {
+  if (retry) clearTimeout(retry);
+  retry = undefined;
+}
+
 /** Feedback from the API client. */
 export function reportReachable(ok: boolean) {
   setOnline(ok);
+  if (ok) {
+    clearRetry();
+    retryMs = RETRY_FIRST_MS;
+    return;
+  }
+  if (!osLink || retry) return;
+  retry = setTimeout(() => {
+    retry = undefined;
+    retryMs = Math.min(retryMs * 2, RETRY_MAX_MS);
+    if (osLink) setOnline(true);
+  }, retryMs);
 }
 
 /** What the OS last said (NetInfo isConnected); a failed API call does not change it. */
@@ -22,6 +45,8 @@ let osLink = true;
 export const osConnected = () => osLink;
 function fromOs(connected: boolean) {
   osLink = connected;
+  clearRetry();
+  retryMs = RETRY_FIRST_MS;
   setOnline(connected);
 }
 

@@ -10,6 +10,8 @@ import { CameraBox, useCamera } from '@/lodestar/camera';
 import { reportToDispatch, stopContext } from '@/model/field-reports';
 import { useOnline, useStop } from '@/model/hooks';
 import { Frame, Grad, Icon, Scroll, Tap, showToast, type ScreenNav, type GradSpec, type Target } from '@/lodestar/runtime';
+import { themed } from '@/lodestar/day-theme';
+import { DRIVER_APP } from '@/lib/config';
 
 const nav: ScreenNav = {"links":{"L255":{"to":"dr-03-proof-of-delivery","kind":"go"},"B":{"to":"dr-17-report-a-problem","kind":"back"}}};
 
@@ -181,7 +183,7 @@ export default function ScreenDr18ProblemDetailDamagedGoods() {
             style={s.v44}
             to={target}
             onPress={async () => {
-              if (!stop) return true; // prototype mode: just navigate
+              if (!stop) return !DRIVER_APP; // nothing loaded: the driver's app stays put; a design preview follows the prototype
               await reportToDispatch(
                 stop.tripId,
                 { report: 'PROBLEM', problem: 'DAMAGED_GOODS', stopId: stop.id, orderId: stop.orderId, units: count, ...(line ? { item: line.name } : {}), note: description, photo: !!photoAt },
@@ -217,7 +219,7 @@ const X7 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#d6cfc7\" stroke-w
 const X8 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#111522\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\" width=\"22\" height=\"22\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M20 6 9 17l-5-5\" fill=\"none\" stroke=\"#111522\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path></svg>";
 const G0: GradSpec[] = [{"type":"linear","angle":135,"at":null,"repeat":false,"stops":[{"c":"#ffd37a","p":0},{"c":"#f5b83d","p":0.6},{"c":"#eda422","p":1}]}];
 
-const s = StyleSheet.create({
+const s = themed(StyleSheet.create({
   v0: {"flexDirection":"column","alignItems":"stretch","backgroundColor":"#0a0f1e","flex":1},
   v1: {"flexShrink":0,"overflow":"hidden"},
   v2: {"flexDirection":"row","justifyContent":"center","alignItems":"center","flexShrink":0,"width":40,"height":40,"backgroundColor":"#1a2340","borderRadius":20},
@@ -265,4 +267,4 @@ const s = StyleSheet.create({
   v44: {"flexDirection":"row","justifyContent":"center","alignItems":"center","rowGap":10,"columnGap":10,"height":58,"borderRadius":18,"boxShadow":"rgba(245, 184, 61, 0.22) 0px 8px 24px 0px"},
   v45: {"flexDirection":"column","alignItems":"stretch","rowGap":8,"columnGap":8,"flexShrink":0,"paddingTop":12,"paddingRight":16,"paddingBottom":6,"paddingLeft":16,"backgroundColor":"#070b16"},
   v46: {"flexDirection":"column","alignItems":"stretch","flexGrow":1,"flexShrink":1,"flexBasis":"0%","backgroundColor":"#070b16"},
-});
+}));

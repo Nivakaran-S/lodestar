@@ -12,6 +12,10 @@ import { router } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useSettings } from '@/lib/settings';
 import { dockVariant, isWideWeb } from './dock-variant';
+import { dayBg, daySvg, dayStop, inDayMode } from './day-theme';
+import { useStore } from '@/lib/store';
+import { DRIVER_APP } from '@/lib/config';
+import { network } from '@/offline/network';
 import Svg, { Defs, LinearGradient, RadialGradient, Rect, Stop, SvgXml } from 'react-native-svg';
 
 export type Target = { to?: string; kind?: 'go' | 'nav' | 'back'; app?: string; screen?: string; params?: Record<string, string> };
@@ -49,7 +53,8 @@ export function openScreen(to: string, params?: Record<string, string>, kind: Ta
 
 function go(t: Target | undefined, notify: (t: Toast) => void) {
   if (!t) return;
-  if (t.app) { notify(t); return; }
+  // the design's walkthrough hint ("continues in <another app>"); a driver's phone has no other app to point to
+  if (t.app) { if (!DRIVER_APP) notify(t); return; }
   if (!t.to) return;
   // Dock links open the tablet variant of a screen in a wide web window (dock-variant.ts); the screen route sends a
   // tablet screen back to its phone variant on a narrow one.
@@ -97,8 +102,8 @@ export function Frame({ bg, nav, children, style }: { bg: string; nav: ScreenNav
   const Outer = inShell ? View : PhoneSafeArea;
   return (
     <NavContext.Provider value={ctx}>
-      <Outer style={{ flex: 1, backgroundColor: bg }}>
-        {inShell ? null : <StatusBar style={isLight(bg) ? 'dark' : 'light'} />}
+      <Outer style={{ flex: 1, backgroundColor: inDayMode() ? dayBg(bg) : bg }}>
+        {inShell ? null : <StatusBar style={isLight(inDayMode() ? dayBg(bg) : bg) ? 'dark' : 'light'} />}
         {nav.whole ? (
           <Pressable style={{ flex: 1 }} onPress={() => go(nav.whole, setToast)}>{body}</Pressable>
         ) : body}
@@ -182,10 +187,22 @@ export function Scroll({ style, contentStyle, children }: { style?: StyleProp<Vi
   );
 }
 
+// The design draws a crossed-out signal icon on many status chips ("On the way", "Online", "0 waiting"). It means
+// "no signal" only when there is none: online, the same chip shows the plain signal icon, in the same colour.
+const NO_SIGNAL = 'M12 20h.01M8.5 16.43a5 5 0 0 1 7 0M2 8.82a15 15 0 0 1 4.17-2.65M10.66 5c4.01-.36 8.14.9 11.34 3.76M16.85 11.25a10 10 0 0 1 2.22 1.68M5 13a10 10 0 0 1 5.24-2.76M2 2l20 20';
+const SIGNAL = 'M12 20h.01M2 8.82a15 15 0 0 1 20 0M5 12.86a10 10 0 0 1 14 0M8.5 16.43a5 5 0 0 1 7 0';
+
+/** The icon's markup for the current connection: a no-signal icon becomes the signal icon while online. */
+export function signalAware(xml: string, online: boolean): string {
+  return online && xml.includes(NO_SIGNAL) ? xml.split(NO_SIGNAL).join(SIGNAL) : xml;
+}
+
 export function Icon({ xml, width, height, style }: { xml: string; width: number; height: number; style?: StyleProp<ViewStyle> }) {
+  const online = useStore(network).online;
+  const shown = signalAware(xml, online);
   return (
     <View style={[style, { pointerEvents: 'none' }]}>
-      <SvgXml xml={xml} width={width} height={height} />
+      <SvgXml xml={inDayMode() ? daySvg(shown) : shown} width={width} height={height} />
     </View>
   );
 }
@@ -198,7 +215,7 @@ export type GradSpec = { type: 'linear' | 'radial'; angle: number; at: [number, 
 export function Grad({ g, style }: { g: GradSpec[]; style?: StyleProp<ViewStyle> }) {
   const id = 'g' + useId().replace(/[^a-zA-Z0-9]/g, '');
   const stops = (x: GradSpec) => x.stops.map((st, i) => (
-    <Stop key={i} offset={String(st.p ?? (x.stops.length === 1 ? 0 : i / (x.stops.length - 1)))} stopColor={st.c} />
+    <Stop key={i} offset={String(st.p ?? (x.stops.length === 1 ? 0 : i / (x.stops.length - 1)))} stopColor={inDayMode() ? dayStop(st.c) : st.c} />
   ));
   return (
     <View style={[StyleSheet.absoluteFill, style, { overflow: 'hidden', pointerEvents: 'none' }]}>

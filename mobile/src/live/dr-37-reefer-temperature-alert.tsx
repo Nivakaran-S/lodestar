@@ -1,7 +1,7 @@
 // Live screen (src/live): started from the generated screen of the same key, with real data and actions in the same Frame/Tap runtime.
 // DR-37 Reefer temperature alert · phone (P4, phone)
 // There is no reefer telemetry: the driver types the reading on the reefer display. The line runs from the dock's
-// pre-cool reading (load record) to the driver's reading, against the 4 °C limit. Both ways out queue a
+// pre-cool reading (load record) to the driver's reading, against the 4\u00a0°C limit. Both ways out queue a
 // REEFER_TEMP report to dispatch through the outbox (when a reading was typed) and go back to driving.
 import { useState } from 'react';
 import { Text, TextInput, View, StyleSheet } from 'react-native';
@@ -13,6 +13,8 @@ import { useOnline, useRun } from '@/model/hooks';
 import { openDialer } from '@/model/run';
 import { Frame, Grad, Icon, Scroll, Tap, showToast, type ScreenNav, type GradSpec } from '@/lodestar/runtime';
 import { TEMP_KEYBOARD } from '@/lib/keyboard';
+import { themed } from '@/lodestar/day-theme';
+import { DRIVER_APP } from '@/lib/config';
 
 const nav: ScreenNav = {"links":{"L247":{"to":"dr-36-en-route-driving-mode","kind":"go"},"L248":{"to":"dr-36-en-route-driving-mode","kind":"go"}}};
 
@@ -48,13 +50,13 @@ export default function ScreenDr37ReeferTemperatureAlert() {
   const points = [dock, reading].filter((t): t is number => t !== undefined);
 
   const send = async (action: string, need: boolean) => {
-    if (!trip) return true; // prototype mode: just navigate
+    if (!trip) return !DRIVER_APP; // nothing loaded: the driver's app stays put; a design preview follows the prototype
     if (reading === undefined) {
       if (!need) return true;
       showToast('Type the reading on the reefer display first', 'error');
       return false;
     }
-    await reportToDispatch(trip.id, { report: 'REEFER_TEMP', tempC: reading, action, ...(dock !== undefined ? { note: `Dock read ${dock} °C` } : {}) }, trip.id, { vehicleId: trip.vehicleId });
+    await reportToDispatch(trip.id, { report: 'REEFER_TEMP', tempC: reading, action, ...(dock !== undefined ? { note: `Dock read ${dock}\u00a0°C` } : {}) }, trip.id, { vehicleId: trip.vehicleId });
     showToast(online ? 'Sent to dispatch' : 'Saved · sends when signal returns');
     return true;
   };
@@ -82,7 +84,7 @@ export default function ScreenDr37ReeferTemperatureAlert() {
               <Text style={s.t9}>{`${chilledVan ? "Chilled load" : "Dry van"} · ${onBoard ? `${plural(onBoard, "chilled order")} on board` : "no chilled orders on board"}`}</Text>
             </View>
             <View>
-              <Text style={s.t11}>{reading === undefined ? `Read the reefer display, needs ≤ ${MAX_CHILLED_C} °C` : warm ? `Reefer at ${reading} °C, needs ≤ ${MAX_CHILLED_C} °C` : `Reefer at ${reading} °C, within ≤ ${MAX_CHILLED_C} °C`}</Text>
+              <Text style={s.t11}>{reading === undefined ? `Read the reefer display, needs ≤\u00a0${MAX_CHILLED_C}\u00a0°C` : warm ? `Reefer at ${reading}\u00a0°C, needs ≤\u00a0${MAX_CHILLED_C}\u00a0°C` : `Reefer at ${reading}\u00a0°C, within ≤\u00a0${MAX_CHILLED_C}\u00a0°C`}</Text>
             </View>
           </View>
           <View style={s.v22}>
@@ -100,7 +102,7 @@ export default function ScreenDr37ReeferTemperatureAlert() {
                   style={[s.t14, x.input]}
                   testID="reefer-reading"
                 />
-                <Text style={s.t14}>{" °C"}<Text style={s.t13}>{"now"}</Text></Text>
+                <Text style={s.t14}>{"\u00a0°C"}<Text style={s.t13}>{"now"}</Text></Text>
               </View>
               {reading !== undefined ? (
                 <View style={warm ? s.v17 : x.okPill}>
@@ -113,10 +115,10 @@ export default function ScreenDr37ReeferTemperatureAlert() {
               {points.length ? <Icon xml={trend(points, warm)} width={302} height={60} style={s.v19} /> : null}
               <View style={s.v20}>
                 <View style={s.v15}>
-                  <Text style={s.t9}>{dock !== undefined ? `Dock${trip?.loadRecord?.loadedAt ? ` ${hm(trip.loadRecord.loadedAt)}` : ""} · ${dock} °C` : "No dock reading"}</Text>
+                  <Text style={s.t9}>{dock !== undefined ? `Dock${trip?.loadRecord?.loadedAt ? ` ${hm(trip.loadRecord.loadedAt)}` : ""} · ${dock}\u00a0°C` : "No dock reading"}</Text>
                 </View>
                 <View style={s.v15}>
-                  <Text style={s.t9}>{`dashed line = ${MAX_CHILLED_C} °C limit`}</Text>
+                  <Text style={s.t9}>{`dashed line = ${MAX_CHILLED_C}\u00a0°C limit`}</Text>
                 </View>
                 <View style={s.v15}>
                   <Text style={warm ? s.t16 : s.t9}>{readAt && reading !== undefined ? hm(readAt) : "—"}</Text>
@@ -166,10 +168,10 @@ export default function ScreenDr37ReeferTemperatureAlert() {
                 </View>
                 <View style={s.v31}>
                   <View>
-                    <Text style={s.t28}>{"Set the reefer to 2 °C"}</Text>
+                    <Text style={s.t28}>{"Set the reefer to 2\u00a0°C"}</Text>
                   </View>
                   <View style={s.v30}>
-                    <Text style={s.t29}>{`It should read ≤ ${MAX_CHILLED_C} °C in about 10 min`}</Text>
+                    <Text style={s.t29}>{`It should read ≤\u00a0${MAX_CHILLED_C}\u00a0°C in about 10 min`}</Text>
                   </View>
                 </View>
               </View>
@@ -186,7 +188,7 @@ export default function ScreenDr37ReeferTemperatureAlert() {
           <Tap lk="L247" style={s.v42} onPress={() => send(warm ? 'CHECKED_STILL_WARM' : 'CHECKED_BACK_IN_RANGE', true)}>
             <Grad g={G0} style={s.v40} />
             <Icon xml={X5} width={22} height={22} style={s.v1} />
-            <Text style={s.t41}>{reading === undefined ? "Checked, log the reading" : warm ? `Checked, still ${reading} °C` : `Checked, back to ${reading} °C`}</Text>
+            <Text style={s.t41}>{reading === undefined ? "Checked, log the reading" : warm ? `Checked, still ${reading}\u00a0°C` : `Checked, back to ${reading}\u00a0°C`}</Text>
           </Tap>
           <Tap style={s.v44} to={null} onPress={() => openDialer()} testID="call-dispatch">
             <Icon xml={X6} width={18} height={18} style={s.v1} />
@@ -213,7 +215,7 @@ const X5 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#111522\" stroke-w
 const X6 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#d6cfc7\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\" width=\"18\" height=\"18\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z\" fill=\"none\" stroke=\"#d6cfc7\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path></svg>";
 const G0: GradSpec[] = [{"type":"linear","angle":135,"at":null,"repeat":false,"stops":[{"c":"#ffd37a","p":0},{"c":"#f5b83d","p":0.6},{"c":"#eda422","p":1}]}];
 
-const s = StyleSheet.create({
+const s = themed(StyleSheet.create({
   v0: {"flexDirection":"column","alignItems":"stretch","backgroundColor":"#0a0f1e","flex":1},
   v1: {"flexShrink":0,"overflow":"hidden"},
   v2: {"flexDirection":"row","justifyContent":"center","alignItems":"center","flexShrink":0,"width":40,"height":40,"backgroundColor":"#1a2340","borderRadius":20},
@@ -261,4 +263,4 @@ const s = StyleSheet.create({
   v44: {"flexDirection":"row","justifyContent":"center","alignItems":"center","rowGap":10,"columnGap":10,"height":52,"borderWidth":1,"borderColor":"#57534e","borderStyle":"dashed","borderRadius":18},
   v45: {"flexDirection":"column","alignItems":"stretch","rowGap":8,"columnGap":8,"flexShrink":0,"paddingTop":12,"paddingRight":16,"paddingBottom":6,"paddingLeft":16,"backgroundColor":"#070b16"},
   v46: {"flexDirection":"column","alignItems":"stretch","flexGrow":1,"flexShrink":1,"flexBasis":"0%","backgroundColor":"#070b16"},
-});
+}));

@@ -12,6 +12,8 @@ import { SignaturePad } from '@/lodestar/signature';
 import { afterPod } from '@/model/run';
 import { useOnline, useOutbox, useStop } from '@/model/hooks';
 import { Frame, Grad, Icon, Scroll, Tap, type ScreenNav, type GradSpec } from '@/lodestar/runtime';
+import { themed } from '@/lodestar/day-theme';
+import { DRIVER_APP } from '@/lib/config';
 
 const nav: ScreenNav = {"links":{"L20":{"to":"dr-04-run-complete","kind":"go"},"L260":{"to":"dr-16-store-code-entry","kind":"go"},"B":{"to":"dr-19-stop-2-arrival-hawa-eliya","kind":"back"}}};
 
@@ -169,7 +171,7 @@ export default function ScreenDr20Stop2ProofOfDelivery() {
             style={[s.v47, !signature && !delivered ? { opacity: 0.55 } : null]}
             to={stop ? afterPod(view, stop) : undefined}
             onPress={async () => {
-              if (!stop || !order) return true; // prototype mode: just navigate
+              if (!stop || !order) return !DRIVER_APP; // nothing loaded: the driver's app stays put; a design preview follows the prototype
               if (delivered) return true;
               if (!signature) {
                 showToast("Ask the receiver to sign · or use the store code if they can't", 'error');
@@ -205,7 +207,7 @@ const G0: GradSpec[] = [{"type":"linear","angle":135,"at":null,"repeat":false,"s
 
 const x = StyleSheet.create({ empty: { backgroundColor: '#1a2340' } });
 
-const s = StyleSheet.create({
+const s = themed(StyleSheet.create({
   v0: {"flexDirection":"column","alignItems":"stretch","backgroundColor":"#0a0f1e","flex":1},
   v1: {"flexShrink":0,"overflow":"hidden"},
   v2: {"flexDirection":"row","justifyContent":"center","alignItems":"center","flexShrink":0,"width":40,"height":40,"backgroundColor":"#1a2340","borderRadius":20},
@@ -258,4 +260,4 @@ const s = StyleSheet.create({
   v49: {"flexDirection":"row","justifyContent":"center","alignItems":"center","rowGap":10,"columnGap":10,"height":44,"borderRadius":18},
   v50: {"flexDirection":"column","alignItems":"stretch","rowGap":8,"columnGap":8,"flexShrink":0,"paddingTop":12,"paddingRight":16,"paddingBottom":6,"paddingLeft":16,"backgroundColor":"#070b16"},
   v51: {"flexDirection":"column","alignItems":"stretch","flexGrow":1,"flexShrink":1,"flexBasis":"0%","backgroundColor":"#070b16"},
-});
+}));

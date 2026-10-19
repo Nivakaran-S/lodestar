@@ -12,6 +12,8 @@ import { reportToDispatch } from '@/model/field-reports';
 import { useOnline, useRun } from '@/model/hooks';
 import { Frame, Grad, Icon, Scroll, Tap, showToast, type ScreenNav, type GradSpec } from '@/lodestar/runtime';
 import { TEMP_KEYBOARD } from '@/lib/keyboard';
+import { themed } from '@/lodestar/day-theme';
+import { DRIVER_APP } from '@/lib/config';
 
 const nav: ScreenNav = {"links":{"L240":{"to":"dr-13-saving-run-for-offline","kind":"go"},"B":{"to":"dr-11-load-handover-received","kind":"back"}}};
 
@@ -56,14 +58,14 @@ export default function ScreenDr12PreTripVehicleCheck() {
     if (read?.value) {
       setText(read.value);
       setPhotoAt(new Date().toISOString());
-      showToast(`Read ${read.value} °C from the photo · check it`);
+      showToast(`Read ${read.value}\u00a0°C from the photo · check it`);
     } else showToast("Couldn't read the display · type the reading", 'error');
     return false;
   };
 
   const send = async (ok: boolean) => {
     if (!trip) throw new Error('No trip on this phone yet');
-    const note = [reading !== undefined ? `Reefer ${reading} °C` : '', photoAt ? 'display photo kept on the phone' : ''].filter(Boolean).join(' · ');
+    const note = [reading !== undefined ? `Reefer ${reading}\u00a0°C` : '', photoAt ? 'display photo kept on the phone' : ''].filter(Boolean).join(' · ');
     await reportToDispatch(trip.id, { report: 'VEHICLE_CHECK', ok, items: items(), ...(note ? { note } : {}) }, trip.id, { vehicleId: trip.vehicleId });
     showToast(online ? 'Sent to dispatch' : 'Saved · sends when signal returns');
   };
@@ -103,7 +105,7 @@ export default function ScreenDr12PreTripVehicleCheck() {
                   style={[s.t10, x.input]}
                   testID="reefer-reading"
                 />
-                <Text style={s.t10}>{" °C"}</Text>
+                <Text style={s.t10}>{"\u00a0°C"}</Text>
               </View>
               {reading !== undefined && chilled ? (
                 <View style={tooWarm ? x.warmPill : s.v13}>
@@ -113,7 +115,7 @@ export default function ScreenDr12PreTripVehicleCheck() {
               ) : null}
             </View>
             <View>
-              <Text style={s.t15}>{chilled ? `Must be ≤ ${MAX_CHILLED_C} °C.${dock !== undefined ? ` Dock read ${dock} °C${trip?.loadRecord?.loadedAt ? ` at ${hm(trip.loadRecord.loadedAt)}` : ""}.` : " No dock reading yet."}` : "Dry load · no reefer reading needed."}</Text>
+              <Text style={s.t15}>{chilled ? `Must be ≤\u00a0${MAX_CHILLED_C}\u00a0°C.${dock !== undefined ? ` Dock read ${dock}\u00a0°C${trip?.loadRecord?.loadedAt ? ` at ${hm(trip.loadRecord.loadedAt)}` : ""}.` : " No dock reading yet."}` : "Dry load · no reefer reading needed."}</Text>
             </View>
           </View>
           <View style={s.v35}>
@@ -137,10 +139,10 @@ export default function ScreenDr12PreTripVehicleCheck() {
                   <View style={s.v26}>
                     <View style={s.v23}>
                       <Icon xml={X2} width={14} height={14} style={s.v1} />
-                      <Text style={s.t22} numberOfLines={1}>{reading !== undefined ? `${reading} °C` : "—"}</Text>
+                      <Text style={s.t22} numberOfLines={1}>{reading !== undefined ? `${reading}\u00a0°C` : "—"}</Text>
                     </View>
                     <View style={s.v24} />
-                    <Text style={s.t25}>{chilled ? `needs ≤ ${MAX_CHILLED_C} °C` : "dry load"}</Text>
+                    <Text style={s.t25}>{chilled ? `needs ≤\u00a0${MAX_CHILLED_C}\u00a0°C` : "dry load"}</Text>
                   </View>
                   <Tap style={s.v26} onPress={photo} to={null} testID="reefer-photo">
                     <View style={s.v23}>
@@ -228,7 +230,7 @@ export default function ScreenDr12PreTripVehicleCheck() {
             lk="L240"
             style={s.v39}
             onPress={async () => {
-              if (!trip) return true; // prototype mode: just navigate
+              if (!trip) return !DRIVER_APP; // nothing loaded: the driver's app stays put; a design preview follows the prototype
               if (done < ITEMS.length) {
                 showToast("Tick each check, or tap Something's wrong", 'error');
                 return false;
@@ -285,7 +287,7 @@ const X9 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#111522\" stroke-w
 const X10 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#b5bdd1\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\" width=\"18\" height=\"18\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z\" fill=\"none\" stroke=\"#b5bdd1\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path><path d=\"M12 9v4M12 17h.01\" fill=\"none\" stroke=\"#b5bdd1\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path></svg>";
 const G0: GradSpec[] = [{"type":"linear","angle":135,"at":null,"repeat":false,"stops":[{"c":"#ffd37a","p":0},{"c":"#f5b83d","p":0.6},{"c":"#eda422","p":1}]}];
 
-const s = StyleSheet.create({
+const s = themed(StyleSheet.create({
   v0: {"flexDirection":"column","alignItems":"stretch","backgroundColor":"#0a0f1e","flex":1},
   v1: {"flexShrink":0,"overflow":"hidden"},
   v2: {"flexDirection":"row","justifyContent":"center","alignItems":"center","flexShrink":0,"width":40,"height":40,"backgroundColor":"#1a2340","borderRadius":20},
@@ -330,4 +332,4 @@ const s = StyleSheet.create({
   v41: {"flexDirection":"row","justifyContent":"center","alignItems":"center","rowGap":10,"columnGap":10,"height":44,"borderRadius":18},
   v42: {"flexDirection":"column","alignItems":"stretch","rowGap":8,"columnGap":8,"flexShrink":0,"paddingTop":12,"paddingRight":16,"paddingBottom":6,"paddingLeft":16,"backgroundColor":"#070b16"},
   v43: {"flexDirection":"column","alignItems":"stretch","flexGrow":1,"flexShrink":1,"flexBasis":"0%","backgroundColor":"#070b16"},
-});
+}));

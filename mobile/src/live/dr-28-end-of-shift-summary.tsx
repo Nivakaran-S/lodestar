@@ -13,6 +13,8 @@ import { useClaims, useOutbox, useRun, type RunView } from '@/model/hooks';
 import type { Trip, TripStop, Vehicle } from '@/model/types';
 import { Frame, Grad, Icon, Scroll, Tap, showToast, type ScreenNav, type GradSpec } from '@/lodestar/runtime';
 import { useDepots } from '@/model/depots';
+import { themed } from '@/lodestar/day-theme';
+import { DRIVER_APP } from '@/lib/config';
 
 // Close shift → DR-06 (P4): the finished trips are completed, the outbox is sent while there is signal, then the
 // driver is signed out (anything still unsent stays on the phone and goes after the next sign-in).
@@ -215,7 +217,7 @@ function CloseShiftBar({ t, view, claims }: Themed & { view: RunView | null; cla
         lk="L22"
         style={s.v45}
         onPress={async () => {
-          if (!view) return true; // prototype mode: just navigate
+          if (!view) return !DRIVER_APP; // nothing loaded: the driver's app stays put; a design preview follows the prototype
           await finishDeliveredTrips(view.trips, view.stops);
           if (network.get().online) await sync.flush().catch(() => undefined);
           const left = claims ? queue.pending(claims.sub).length : 0;
@@ -240,7 +242,7 @@ const X4 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#111522\" stroke-w
 const G0: GradSpec[] = [{"type":"linear","angle":90,"at":null,"repeat":false,"stops":[{"c":"#ffd37a","p":0},{"c":"#f5b83d","p":1}]}];
 const G1: GradSpec[] = [{"type":"linear","angle":135,"at":null,"repeat":false,"stops":[{"c":"#ffd37a","p":0},{"c":"#f5b83d","p":0.6},{"c":"#eda422","p":1}]}];
 
-const s = StyleSheet.create({
+const s = themed(StyleSheet.create({
   v0: {"flexDirection":"column","alignItems":"stretch","backgroundColor":"#0a0f1e","flex":1},
   v1: {"flexShrink":0,"overflow":"hidden"},
   v2: {"flexDirection":"row","justifyContent":"center","alignItems":"center","flexShrink":0,"width":40,"height":40,"borderRadius":20},
@@ -289,6 +291,6 @@ const s = StyleSheet.create({
   v45: {"flexDirection":"row","justifyContent":"center","alignItems":"center","rowGap":10,"columnGap":10,"height":58,"borderRadius":18,"boxShadow":"rgba(245, 184, 61, 0.22) 0px 8px 24px 0px"},
   v46: {"flexDirection":"column","alignItems":"stretch","rowGap":8,"columnGap":8,"flexShrink":0,"paddingTop":12,"paddingRight":16,"paddingBottom":6,"paddingLeft":16,"backgroundColor":"#070b16"},
   v47: {"flexDirection":"column","alignItems":"stretch","flexGrow":1,"flexShrink":1,"flexBasis":"0%","backgroundColor":"#070b16"},
-});
+}));
 
 export const night: Dr28Theme = { bg: '#070b16', X1, X2, X4, bar: G0, cta: G1, s };

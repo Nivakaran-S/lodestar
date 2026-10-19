@@ -13,6 +13,8 @@ import { useClaims, useNotifications, useParam, useRun } from '@/model/hooks';
 import { useQuery } from '@/model/query';
 import { setRunMark } from '@/model/run';
 import { Frame, Grad, Icon, Scroll, Tap, type ScreenNav, type GradSpec } from '@/lodestar/runtime';
+import { themed } from '@/lodestar/day-theme';
+import { DRIVER_APP } from '@/lib/config';
 
 const nav: ScreenNav = {"links":{"L239":{"to":"dr-12-pre-trip-vehicle-check","kind":"go"}}};
 
@@ -37,13 +39,17 @@ export default function ScreenDr11LoadHandoverReceived() {
   const m3 = stops.reduce((n, st) => n + (st.order?.m3 ?? 0), 0);
   const cap = trip?.vehicle;
   const reefer = lr?.reeferTempC ?? trip?.reeferTempC;
-  const releasedAt = lr?.releasedAt ?? trip?.departTime;
+  // released means the dock released it (load record, or the trip already en route), not the plan's departure time
+  const released = !!trip && (!!lr?.releasedAt || trip.status === 'ENROUTE' || trip.status === 'COMPLETE');
+  const releasedAt = released ? (lr?.releasedAt ?? trip?.departTime) : undefined;
+  // nothing to accept until the dock has released the load (seal number, reefer temperature)
+  const notYet = !!trip && !released;
   const shortOf = (orderId: string) => shortfalls.filter(x => !x.orderId || x.orderId === orderId).reduce((n, x) => n + Math.max(0, x.qtyOrdered - x.qtyLoaded), 0);
   const shortStop = sf ? stops.find(st => st.orderId === sf.orderId) : undefined;
   const empty = !claims ? 'Sign in to see your load' : run.loading && !v ? 'Loading…' : 'No load released yet';
 
   const accept = async () => {
-    if (!trip) return true; // design preview: follow the prototype
+    if (!trip) return !DRIVER_APP; // nothing loaded: the driver's app stays put; a design preview follows the prototype
     if (shortfalls.length && !seen) throw new Error("Tick \"I've seen the shortfall\" first");
     await setRunMark('accepted', trip.id);
     return true;
@@ -70,7 +76,7 @@ export default function ScreenDr11LoadHandoverReceived() {
         <Scroll style={s.v4} contentStyle={s.v41}>
           <View style={s.v17}>
             <View>
-              <Text style={s.t9} testID="released-line">{trip ? ['Released', trip.bay ? `Bay ${trip.bay}` : '', releasedAt ? hm(releasedAt) : ''].filter(Boolean).join(' · ') : empty}</Text>
+              <Text style={s.t9} testID="released-line">{trip ? [released ? 'Released' : 'Still loading at the dock', trip.bay ? `Bay ${trip.bay}` : '', releasedAt ? hm(releasedAt) : ''].filter(Boolean).join(' · ') : empty}</Text>
             </View>
             {trip ? (
               <View style={s.v15}>
@@ -132,7 +138,7 @@ export default function ScreenDr11LoadHandoverReceived() {
                 {typeof reefer === 'number' ? (
                   <View style={s.v29}>
                     <Icon xml={X3} width={14} height={14} style={s.v1} />
-                    <Text style={s.t28} numberOfLines={1}>{`Reefer ${reefer} °C`}</Text>
+                    <Text style={s.t28} numberOfLines={1}>{`Reefer ${reefer}\u00a0°C`}</Text>
                   </View>
                 ) : null}
               </View>
@@ -172,10 +178,10 @@ export default function ScreenDr11LoadHandoverReceived() {
           ) : null}
         </Scroll>
         <View style={s.v45}>
-          <Tap lk="L239" style={s.v44} onPress={accept} to={trip ? { to: 'dr-12-pre-trip-vehicle-check', params: { trip: trip.id } } : undefined}>
+          <Tap lk="L239" style={s.v44} onPress={accept} disabled={notYet} to={trip ? { to: 'dr-12-pre-trip-vehicle-check', params: { trip: trip.id } } : undefined}>
             <Grad g={G0} style={s.v42} />
             <Icon xml={X6} width={22} height={22} style={s.v1} />
-            <Text style={s.t43}>{"Accept load"}</Text>
+            <Text style={s.t43}>{notYet ? 'Waiting for the dock to release' : 'Accept load'}</Text>
           </Tap>
         </View>
       </View>
@@ -194,7 +200,7 @@ const X5 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#a9b4ff\" stroke-w
 const X6 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#111522\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\" width=\"22\" height=\"22\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M20 6 9 17l-5-5\" fill=\"none\" stroke=\"#111522\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path></svg>";
 const G0: GradSpec[] = [{"type":"linear","angle":135,"at":null,"repeat":false,"stops":[{"c":"#ffd37a","p":0},{"c":"#f5b83d","p":0.6},{"c":"#eda422","p":1}]}];
 
-const s = StyleSheet.create({
+const s = themed(StyleSheet.create({
   v0: {"flexDirection":"column","alignItems":"stretch","backgroundColor":"#0a0f1e","flex":1},
   v1: {"flexShrink":0,"overflow":"hidden"},
   v2: {"flexDirection":"row","justifyContent":"center","alignItems":"center","flexShrink":0,"width":40,"height":40,"borderRadius":20},
@@ -242,4 +248,4 @@ const s = StyleSheet.create({
   v44: {"flexDirection":"row","justifyContent":"center","alignItems":"center","rowGap":10,"columnGap":10,"height":58,"borderRadius":18,"boxShadow":"rgba(245, 184, 61, 0.22) 0px 8px 24px 0px"},
   v45: {"flexDirection":"column","alignItems":"stretch","rowGap":8,"columnGap":8,"flexShrink":0,"paddingTop":12,"paddingRight":16,"paddingBottom":6,"paddingLeft":16,"backgroundColor":"#070b16"},
   v46: {"flexDirection":"column","alignItems":"stretch","flexGrow":1,"flexShrink":1,"flexBasis":"0%","backgroundColor":"#070b16"},
-});
+}));

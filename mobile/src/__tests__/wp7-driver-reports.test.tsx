@@ -190,32 +190,40 @@ describe('Trip status from the driver: started (ENROUTE) and finished (COMPLETE)
   const statusWrites = (sub: string) => queue.list().filter(i => i.sub === sub && i.kind === 'TRIP_STATUS').map(i => i.payload);
 
   // Start trip is the design's L12 button (lk-L12)
-  it('DR-01 Start trip sets a trip that is still loading ENROUTE, once', async () => {
+  it('DR-01 a trip still loading at the dock cannot be started: the driver waits for the release', async () => {
     routes.set('Trips', [{ ...trip, status: 'LOADING' }]);
     await signInAs(driver('u-start'));
     await saveRunOnPhone();
     const Screen = require('@/live/dr-01-today-s-run').default;
     await render(<Screen />);
     expect(await screen.findByText('Hill Store')).toBeTruthy();
-    expect(screen.getByText('Start trip')).toBeTruthy();
+    expect(screen.getByText('Waiting for the dock to release')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('lk-L12'));
-    await waitFor(() => expect(push).toHaveBeenCalledWith(opened('dr-36-en-route-driving-mode')));
-    expect(statusWrites('u-start')).toEqual([{ tripId: 'T-1', status: 'ENROUTE' }]);
-    // the phone now knows the trip is en route: the button says so and a second tap queues nothing
-    expect(await screen.findByText('Continue trip')).toBeTruthy();
-    await fireEvent.press(screen.getByTestId('lk-L12'));
-    expect(statusWrites('u-start')).toHaveLength(1);
+    expect(push).not.toHaveBeenCalledWith(opened('dr-36-en-route-driving-mode'));
+    expect(statusWrites('u-start')).toEqual([]);
   });
 
-  it('DR-01 Start trip on a trip the dock already released (ENROUTE) queues nothing', async () => {
+  it('DR-01 a released load not yet accepted on this phone: the handover comes first', async () => {
     await signInAs(driver('u-start2'));
     await saveRunOnPhone();
     const Screen = require('@/live/dr-01-today-s-run').default;
     await render(<Screen />);
-    expect(await screen.findByText('Continue trip')).toBeTruthy();
+    expect(await screen.findByText('Review the load')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('lk-L12'));
+    await waitFor(() => expect(push).toHaveBeenCalledWith(opened('dr-11-load-handover-received', { trip: 'T-1' })));
+    expect(statusWrites('u-start2')).toEqual([]);
+  });
+
+  it('DR-01 a released load already accepted starts the trip with no status write; the dock set it en route', async () => {
+    await signInAs(driver('u-start3'));
+    await saveRunOnPhone();
+    await require('@/model/run').setRunMark('accepted', 'T-1');
+    const Screen = require('@/live/dr-01-today-s-run').default;
+    await render(<Screen />);
+    expect(await screen.findByText('Start trip')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('lk-L12'));
     await waitFor(() => expect(push).toHaveBeenCalledWith(opened('dr-36-en-route-driving-mode')));
-    expect(statusWrites('u-start2')).toEqual([]);
+    expect(statusWrites('u-start3')).toEqual([]);
   });
 
   it('DR-04 after the last stop: the trip is set COMPLETE once, and sent as Trips SetStatus', async () => {

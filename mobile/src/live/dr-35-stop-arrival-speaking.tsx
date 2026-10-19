@@ -15,6 +15,7 @@ import { isUnsent, useOutbox, useStop } from '@/model/hooks';
 import { stopGroup } from '@/model/run';
 import { LATE_RISK_PCT } from '@/model/preferences';
 import { Frame, Grad, Icon, Scroll, Tap, type ScreenNav, type GradSpec } from '@/lodestar/runtime';
+import { themed } from '@/lodestar/day-theme';
 
 const nav: ScreenNav = {"links":{"L281":{"to":"dr-02-stop-arrival","kind":"go"},"L282":{"to":"dr-03-proof-of-delivery","kind":"go"},"L283":{"to":"dr-17-report-a-problem","kind":"go"},"B":{"to":"dr-02-stop-arrival","kind":"back"}}};
 
@@ -261,7 +262,7 @@ const X11 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#b5bdd1\" stroke-
 const G0: GradSpec[] = [{"type":"linear","angle":135,"at":null,"repeat":false,"stops":[{"c":"#ffd37a","p":0},{"c":"#f5b83d","p":0.6},{"c":"#eda422","p":1}]}];
 
 
-const s = StyleSheet.create({
+const s = themed(StyleSheet.create({
   v0: {"flexDirection":"column","alignItems":"stretch","backgroundColor":"#0a0f1e","flex":1},
   v1: {"flexShrink":0,"overflow":"hidden"},
   v2: {"flexDirection":"row","justifyContent":"center","alignItems":"center","flexShrink":0,"width":40,"height":40,"backgroundColor":"#1a2340","borderRadius":20},
@@ -329,4 +330,4 @@ const s = StyleSheet.create({
   v64: {"flexDirection":"row","justifyContent":"center","alignItems":"center","rowGap":10,"columnGap":10,"height":44,"borderRadius":18},
   v65: {"flexDirection":"column","alignItems":"stretch","rowGap":4,"columnGap":4,"flexShrink":0,"paddingTop":8,"paddingRight":16,"paddingBottom":6,"paddingLeft":16,"backgroundColor":"#070b16"},
   v66: {"flexDirection":"column","alignItems":"stretch","flexGrow":1,"flexShrink":1,"flexBasis":"0%","backgroundColor":"#070b16"},
-});
+}));

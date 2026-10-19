@@ -8,6 +8,7 @@ import { plural, signOutTo, titleCase, useDeviceId } from '@/lodestar/live';
 import { useClaims, useOutbox, useRun } from '@/model/hooks';
 import { Frame, Icon, Scroll, Tap, type ScreenNav } from '@/lodestar/runtime';
 import { useDepots } from '@/model/depots';
+import { themed } from '@/lodestar/day-theme';
 
 const nav: ScreenNav = {"links":{"L35":{"to":"dr-01-today-s-run-daylight","kind":"go"},"L37":{"to":"dr-31-update-required","kind":"go"},"L268":{"to":"dr-33-voice-and-language","kind":"go"},"L269":{"to":"dr-06-sign-in","kind":"go"},"B":{"to":"dr-01-today-s-run","kind":"back"}}};
 
@@ -188,7 +189,7 @@ const X6 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#b5bdd1\" stroke-w
 const X7 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#b5bdd1\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\" width=\"19\" height=\"19\" xmlns=\"http://www.w3.org/2000/svg\"><circle cx=\"12\" cy=\"12\" r=\"10\" fill=\"none\" stroke=\"#b5bdd1\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></circle><path d=\"M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01\" fill=\"none\" stroke=\"#b5bdd1\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path></svg>";
 const X8 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#ff8a7a\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\" width=\"19\" height=\"19\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9\" fill=\"none\" stroke=\"#ff8a7a\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path></svg>";
 
-const s = StyleSheet.create({
+const s = themed(StyleSheet.create({
   v0: {"flexDirection":"column","alignItems":"stretch","backgroundColor":"#0a0f1e","flex":1},
   v1: {"flexShrink":0,"overflow":"hidden"},
   v2: {"flexDirection":"row","justifyContent":"center","alignItems":"center","flexShrink":0,"width":40,"height":40,"backgroundColor":"#1a2340","borderRadius":20},
@@ -208,9 +209,9 @@ const s = StyleSheet.create({
   t16: {"color":"#7f89a3","fontSize":13,"lineHeight":19.5,"fontFamily":"Inter_700Bold"},
   v17: {"flexDirection":"row","justifyContent":"space-between","alignItems":"baseline","paddingRight":20,"paddingLeft":20},
   t18: {"color":"#ffffff","fontSize":14,"lineHeight":21,"fontFamily":"Inter_700Bold"},
-  v19: {"flexDirection":"row","justifyContent":"center","alignItems":"center","flexGrow":1,"flexShrink":1,"flexBasis":"0%","height":48,"backgroundColor":"#2c3760","borderRadius":10},
+  v19: {"flexDirection":"row","columnGap":6,"justifyContent":"center","alignItems":"center","flexGrow":1,"flexShrink":1,"flexBasis":"0%","height":48,"backgroundColor":"#2c3760","borderRadius":10},
   t20: {"color":"#b5bdd1","fontSize":14,"lineHeight":21,"fontFamily":"Inter_700Bold"},
-  v21: {"flexDirection":"row","justifyContent":"center","alignItems":"center","flexGrow":1,"flexShrink":1,"flexBasis":"0%","height":48,"borderRadius":10},
+  v21: {"flexDirection":"row","columnGap":6,"justifyContent":"center","alignItems":"center","flexGrow":1,"flexShrink":1,"flexBasis":"0%","height":48,"borderRadius":10},
   v22: {"flexDirection":"row","alignItems":"stretch","rowGap":4,"columnGap":4,"paddingTop":4,"paddingRight":4,"marginRight":16,"paddingBottom":4,"paddingLeft":4,"marginLeft":16,"backgroundColor":"#1a2340","borderRadius":14},
   v23: {"flexDirection":"column","alignItems":"stretch","rowGap":8,"columnGap":8,"flexShrink":0},
   v24: {"flexDirection":"row","justifyContent":"center","alignItems":"center","flexShrink":0,"width":38,"height":38,"backgroundColor":"#1a2340","borderRadius":12},
@@ -228,4 +229,4 @@ const s = StyleSheet.create({
   v36: {"flexDirection":"row","justifyContent":"center","alignItems":"center","rowGap":6,"columnGap":6,"flexShrink":0},
   v37: {"flexDirection":"column","alignItems":"stretch","rowGap":16,"columnGap":16,"paddingTop":10,"paddingBottom":16},
   v38: {"flexDirection":"column","alignItems":"stretch","flexGrow":1,"flexShrink":1,"flexBasis":"0%","backgroundColor":"#070b16"},
-});
+}));

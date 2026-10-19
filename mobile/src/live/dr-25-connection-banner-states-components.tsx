@@ -5,6 +5,7 @@ import { hm } from '@/lib/time';
 import { ConnectionBanner, ConnectionPill, useConnection } from '@/lodestar/connection-banner';
 import { useRun } from '@/model/hooks';
 import { Frame, type ScreenNav } from '@/lodestar/runtime';
+import { themed } from '@/lodestar/day-theme';
 
 const nav: ScreenNav = {"links":{}};
 
@@ -80,7 +81,7 @@ export default function ScreenDr25ConnectionBannerStatesComponents() {
   );
 }
 
-const s = StyleSheet.create({
+const s = themed(StyleSheet.create({
   v0: {"flexDirection":"column","alignItems":"stretch","backgroundColor":"#070b16","flex":1},
   t1: {"color":"#f2f4fa","fontSize":22,"lineHeight":33,"letterSpacing":-0.4,"fontFamily":"PlusJakartaSans_800ExtraBold"},
   v2: {"paddingRight":20,"paddingBottom":4,"paddingLeft":20},
@@ -106,4 +107,4 @@ const s = StyleSheet.create({
   v22: {"flexDirection":"row","alignItems":"center","rowGap":6,"columnGap":6,"flexShrink":1,"paddingRight":12,"paddingLeft":12,"height":28,"backgroundColor":"#0b2233","borderRadius":14},
   v23: {"flexDirection":"row","flexWrap":"wrap","alignItems":"stretch","rowGap":8,"columnGap":8,"paddingRight":16,"paddingLeft":16},
   v24: {"flexDirection":"column","alignItems":"stretch","rowGap":12,"columnGap":12,"paddingTop":22,"paddingBottom":24},
-});
+}));

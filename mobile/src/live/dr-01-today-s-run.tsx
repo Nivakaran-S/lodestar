@@ -12,6 +12,8 @@ import { finishDeliveredTrips, startTrip, tripStatusOf } from '@/model/actions';
 import type { Shortfall, TripStop } from '@/model/types';
 import { setSettings, type ScreenTheme } from '@/lib/settings';
 import { Frame, Grad, Icon, Scroll, Tap, openScreen, type ScreenNav, type GradSpec } from '@/lodestar/runtime';
+import { themed } from '@/lodestar/day-theme';
+import { DRIVER_APP } from '@/lib/config';
 
 const nav: ScreenNav = {"links":{"L12":{"to":"dr-36-en-route-driving-mode","kind":"go"},"L41":{"to":"dr-15-route-overview","kind":"go"},"L243":{"to":"dr-24-settings-me","kind":"go"},"N1":{"to":"dr-21-records","kind":"nav"},"N2":{"to":"dr-23-dispatch-notices","kind":"nav"}}};
 
@@ -70,10 +72,11 @@ export function Dr01Body({ t }: { t: Dr01Theme }) {
           <TripStops t={t} view={view} groups={groups} current={current} waiting={waiting} />
           {shortfalls[0] ? <ShortfallCard t={t} first={shortfalls[0]} count={shortfalls.length} /> : null}
           <View style={s.v46}>
-            <Icon xml={t.X6} width={20} height={20} style={s.v41} />
+            {/* the crossed-out signal only when there is no signal: online, the run is simply saved on the phone */}
+            <Icon xml={online ? savedIcon(t.X6) : t.X6} width={20} height={20} style={s.v41} />
             <View style={s.v43}>
               <View>
-                <Text style={s.t45}>{savedText(waiting.length, updatedAt, fromCache)}</Text>
+                <Text style={s.t45}>{savedText(waiting.length, updatedAt, fromCache, online)}</Text>
               </View>
             </View>
           </View>
@@ -137,10 +140,18 @@ function nextStopTitle(current: TripStop | null, first: TripStop | undefined, ha
   return hasTrip ? 'All stops delivered' : 'No stops yet';
 }
 
-function savedText(waiting: number, updatedAt: number | null | undefined, fromCache: boolean | undefined): string {
+function savedText(waiting: number, updatedAt: number | null | undefined, fromCache: boolean | undefined, online: boolean): string {
   if (waiting) return `${plural(waiting, 'record')} waiting to send`;
-  if (updatedAt) return `Saved ${hm(new Date(updatedAt).toISOString())} · works without signal${fromCache ? ' (from this phone)' : ''}`;
-  return 'Opens without signal once loaded';
+  const at = updatedAt ? hm(new Date(updatedAt).toISOString()) : '';
+  if (!online) return at ? `No signal · your run is on this phone (saved ${at})` : 'No signal · the run opens once it has loaded';
+  if (at) return `Saved on this phone ${at} · keeps working if the signal drops${fromCache ? ' (from this phone)' : ''}`;
+  return 'Saved on this phone once loaded, for when the signal drops';
+}
+
+/** A check in the colour of the no-signal icon, for "saved on this phone" while online. */
+function savedIcon(noSignal: string): string {
+  const c = /stroke="(#[0-9a-fA-F]{6})"/.exec(noSignal)?.[1] ?? '#d6cfc7';
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20" xmlns="http://www.w3.org/2000/svg"><path d="M20 6 9 17l-5-5"/></svg>`;
 }
 
 function stopState(unsent: boolean, delivered: boolean, units: number, orders: number): string {
@@ -162,7 +173,7 @@ function RunHeader({ t, day, chip }: Themed & { day: string; chip: string }) {
         <Icon xml={X0} width={36} height={36} style={s.v1} />
       </Tap>
       <View style={s.v4}>
-        <Text style={s.t3} testID="run-day">{day}</Text>
+        <Text style={s.t3} testID="run-day" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{day}</Text>
       </View>
       <View style={s.v6} testID="net-chip">
         <Icon xml={t.X1} width={14} height={14} style={s.v1} />
@@ -180,9 +191,10 @@ function NextStopCard({ t, current, title }: Themed & { current: TripStop | null
   return (
     <Tap lk={t.route} style={s.v19}>
       {X3 ? (
-        <View style={s.v11}>
+        // its own button: reads the next stop aloud (the rest of the card opens the route)
+        <Tap to={null} say={nextStopSpeech(current, title)} style={s.v11} testID="read-next-stop">
           <Icon xml={X3} width={20} height={20} style={s.v1} />
-        </View>
+        </Tap>
       ) : null}
       <View>
         <Text style={s.t12}>{title}</Text>
@@ -203,6 +215,13 @@ function NextStopCard({ t, current, title }: Themed & { current: TripStop | null
       </View>
     </Tap>
   );
+}
+
+/** What the speaker on the next-stop card reads: the stop and its ETA. */
+function nextStopSpeech(current: TripStop | null, title: string): string {
+  if (!current) return title;
+  const eta = current.etaModel ? `, estimated arrival ${hm(current.etaModel)}` : '';
+  return `${title}${eta}.`;
 }
 
 function TripStops({ t, view, groups, current, waiting }: Themed & { view: RunView | null; groups: StopGroup[]; current: TripStop | null; waiting: Outbox['waiting'] }) {
@@ -285,15 +304,30 @@ function ShortfallCard({ t, first, count }: Themed & { first: Shortfall; count: 
 function StartTripBar({ t, view, items }: Themed & { view: RunView | null; items: Outbox['items'] }) {
   const { s } = t;
   const trip = view?.trip ?? null;
+  const marks = useRunMarks(trip?.id);
+  // no trip assigned (or still loading): the driver's app has nothing to start; a design preview keeps the prototype
+  if ((!view || !trip) && DRIVER_APP) return null;
   // a finished run has nothing left to start
   if (view?.stops.length && view.stops.every(st => st.status === 'DELIVERED')) return null;
+  // The dock's release (seal number, reefer temperature) puts the trip en route. Until then there is nothing to
+  // start: the driver waits for it, and the release opens the load handover on this phone (DR-11).
+  const status = trip ? tripStatusOf(trip, items) : null;
+  const waiting = status === 'PLANNED' || status === 'LOADING';
+  const begun = !!trip && !!view?.stops.some(st => st.tripId === trip.id && (st.arrivalActual || st.status === 'DELIVERED'));
+  // released but the load not yet taken over on this phone (the release came before sign-in): the handover and the
+  // pre-trip check come first, as they do when the release notice opens them
+  const handover = !!trip && !waiting && !begun && marks.loaded && !marks.accepted;
+  const label = waiting ? 'Waiting for the dock to release' : handover ? 'Review the load' : begun ? 'Continue trip' : 'Start trip';
   return (
     <View style={s.v51}>
       <Tap
         lk="L12"
         style={s.v50}
+        disabled={waiting}
+        to={handover && trip ? { to: 'dr-11-load-handover-received', params: { trip: trip.id } } : undefined}
         onPress={async () => {
-          if (!trip || !view) return true; // prototype mode: just navigate
+          if (!trip || !view) return true; // design preview: follow the prototype
+          if (handover) return true;
           // the trips before this one are finished (Trip 2 starts after Trip 1), then this one is en route
           await finishDeliveredTrips(view.trips.filter(x => x.tripNumber < trip.tripNumber), view.stops);
           await startTrip(trip);
@@ -302,7 +336,7 @@ function StartTripBar({ t, view, items }: Themed & { view: RunView | null; items
       >
         <Grad g={t.cta} style={s.v48} />
         <Icon xml={t.X7} width={22} height={22} style={s.v1} />
-        <Text style={s.t49}>{trip && tripStatusOf(trip, items) === 'ENROUTE' ? 'Continue trip' : 'Start trip'}</Text>
+        <Text style={s.t49}>{label}</Text>
       </Tap>
     </View>
   );
@@ -341,7 +375,7 @@ const X9 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#7f89a3\" stroke-w
 const X10 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#7f89a3\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\" width=\"24\" height=\"24\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9\" fill=\"none\" stroke=\"#7f89a3\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path><path d=\"M10.3 21a1.94 1.94 0 0 0 3.4 0\" fill=\"none\" stroke=\"#7f89a3\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path></svg>";
 const G0: GradSpec[] = [{"type":"linear","angle":135,"at":null,"repeat":false,"stops":[{"c":"#ffd37a","p":0},{"c":"#f5b83d","p":0.6},{"c":"#eda422","p":1}]}];
 
-const s = StyleSheet.create({
+const s = themed(StyleSheet.create({
   v0: {"flexDirection":"column","alignItems":"stretch","backgroundColor":"#0a0f1e","flex":1},
   v1: {"flexShrink":0,"overflow":"hidden"},
   v2: {"flexDirection":"row","justifyContent":"center","alignItems":"center","flexShrink":0,"width":40,"height":40,"borderRadius":20},
@@ -398,6 +432,6 @@ const s = StyleSheet.create({
   v53: {"flexDirection":"column","alignItems":"center","rowGap":3,"columnGap":3,"flexGrow":1,"flexShrink":1,"flexBasis":"0%","paddingTop":4,"paddingBottom":4},
   v54: {"flexDirection":"row","alignItems":"stretch","flexShrink":0,"paddingTop":8,"paddingRight":12,"paddingBottom":2,"paddingLeft":12,"backgroundColor":"#0b1122","borderTopWidth":1,"borderTopColor":"#1b2338"},
   v55: {"flexDirection":"column","alignItems":"stretch","flexGrow":1,"flexShrink":1,"flexBasis":"0%","backgroundColor":"#070b16"},
-});
+}));
 
 export const night: Dr01Theme = { bg: '#070b16', nav, route: 'L41', toggle: 'day', cta: G0, X1, X2, X3, X4, X5, X6, X7, X8, X9, X10, s };

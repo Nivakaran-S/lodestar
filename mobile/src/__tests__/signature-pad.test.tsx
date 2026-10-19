@@ -15,8 +15,9 @@ describe('signature pad', () => {
     expect(onChange).toHaveBeenLastCalledWith(null);
     await draw('signature-pad', [[20, 50], [60, 20], [120, 55], [200, 30]]);
     const svg = onChange.mock.calls[onChange.mock.calls.length - 1][0] as string;
-    expect(svg).toMatch(/^<svg xmlns="http:\/\/www.w3.org\/2000\/svg" viewBox="0 0 280 84">/);
-    expect(svg).toContain('<path d="M20 60 L60 24 L120 66 L200 36"/>');
+    // the drawing space has the pad's own shape (here 280 × 70), so the ink is exactly where the finger was
+    expect(svg).toMatch(/^<svg xmlns="http:\/\/www.w3.org\/2000\/svg" viewBox="0 0 280 70">/);
+    expect(svg).toContain('<path d="M20 50 L60 20 L120 55 L200 30"/>');
     await fireEvent.press(screen.getByTestId('signature-pad-clear'));
     expect(onChange).toHaveBeenLastCalledWith(null);
   });

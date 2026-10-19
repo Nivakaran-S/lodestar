@@ -9,6 +9,7 @@ import { isUnsent, useOutbox, useStop } from '@/model/hooks';
 import { stopGroup } from '@/model/run';
 import { LATE_RISK_PCT } from '@/model/preferences';
 import { Frame, Grad, Icon, Scroll, Tap, type ScreenNav, type GradSpec } from '@/lodestar/runtime';
+import { themed } from '@/lodestar/day-theme';
 
 const nav: ScreenNav = {"links":{"L19":{"to":"dr-20-stop-2-proof-of-delivery","kind":"go"},"L259":{"to":"dr-17-report-a-problem","kind":"go"},"B":{"to":"dr-36-en-route-driving-mode","kind":"back"}}};
 
@@ -183,7 +184,7 @@ const G0: GradSpec[] = [{"type":"linear","angle":135,"at":null,"repeat":false,"s
 
 const x = StyleSheet.create({ rowLine: { borderTopWidth: 1, borderTopColor: '#1b2338' } });
 
-const s = StyleSheet.create({
+const s = themed(StyleSheet.create({
   v0: {"flexDirection":"column","alignItems":"stretch","backgroundColor":"#0a0f1e","flex":1},
   v1: {"flexShrink":0,"overflow":"hidden"},
   v2: {"flexDirection":"row","justifyContent":"center","alignItems":"center","flexShrink":0,"width":40,"height":40,"backgroundColor":"#1a2340","borderRadius":20},
@@ -233,4 +234,4 @@ const s = StyleSheet.create({
   v46: {"flexDirection":"row","justifyContent":"center","alignItems":"center","rowGap":10,"columnGap":10,"height":44,"borderRadius":18},
   v47: {"flexDirection":"column","alignItems":"stretch","rowGap":8,"columnGap":8,"flexShrink":0,"paddingTop":12,"paddingRight":16,"paddingBottom":6,"paddingLeft":16,"backgroundColor":"#070b16"},
   v48: {"flexDirection":"column","alignItems":"stretch","flexGrow":1,"flexShrink":1,"flexBasis":"0%","backgroundColor":"#070b16"},
-});
+}));

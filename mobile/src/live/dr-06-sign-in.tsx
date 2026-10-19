@@ -9,6 +9,7 @@ import { useAccessProblem, useDeviceId, useDirectSignIn } from '@/lodestar/live'
 import { Keypad, typeKey } from '@/lodestar/keypad';
 import { Grad, Icon, openScreen, Scroll, Tap, type ScreenNav, type GradSpec } from '@/lodestar/runtime';
 import { DeskButton, DeskField, DeskFrame, DeskHead, DeskSmall, ICONS } from '@/lodestar/desk-auth';
+import { themed } from '@/lodestar/day-theme';
 
 const nav: ScreenNav = {"links":{"L229":{"to":"dr-07-verify-code","kind":"go"}}};
 
@@ -76,8 +77,10 @@ export default function ScreenDr06SignIn() {
               <Text style={s.t12}>{"+94"}</Text>
             </View>
             <View style={s.v16}>
+              {/* the caret sits after what is typed; in an empty field it sits at the start, before the placeholder */}
+              {digits ? null : <View style={[s.v15, { marginLeft: 0, marginRight: 3 }]} testID="phone-caret" />}
               <Text style={[s.t14, digits ? null : { opacity: 0.45 }]} numberOfLines={1} testID="phone-value">{digits ? groupLocal(digits) : "77 123 4567"}</Text>
-              <View style={s.v15} />
+              {digits ? <View style={s.v15} testID="phone-caret" /> : null}
             </View>
           </View>
           <View style={s.v20}>
@@ -117,7 +120,7 @@ const X2 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#111522\" stroke-w
 const X3 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#b5bdd1\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\" width=\"26\" height=\"26\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z\" fill=\"none\" stroke=\"#b5bdd1\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path><path d=\"m18 9-6 6M12 9l6 6\" fill=\"none\" stroke=\"#b5bdd1\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path></svg>";
 const G0: GradSpec[] = [{"type":"linear","angle":135,"at":null,"repeat":false,"stops":[{"c":"#ffd37a","p":0},{"c":"#f5b83d","p":0.6},{"c":"#eda422","p":1}]}];
 
-const s = StyleSheet.create({
+const s = themed(StyleSheet.create({
   v0: {"flexDirection":"column","alignItems":"stretch","backgroundColor":"#0a0f1e","flex":1},
   v1: {"flexShrink":0,"overflow":"hidden"},
   v2: {"flexDirection":"row","justifyContent":"center","alignItems":"center","flexShrink":0,"width":40,"height":40,"borderRadius":20},
@@ -150,4 +153,4 @@ const s = StyleSheet.create({
   v29: {"flexDirection":"row","justifyContent":"center","alignItems":"center","flexGrow":1,"flexShrink":1,"flexBasis":"0%","height":56,"borderRadius":14},
   v30: {"flexDirection":"column","alignItems":"stretch","rowGap":8,"columnGap":8,"flexShrink":0,"paddingTop":10,"paddingRight":12,"paddingBottom":4,"paddingLeft":12,"backgroundColor":"#0a0f1e","borderTopWidth":1,"borderTopColor":"#1b2338"},
   v31: {"flexDirection":"column","alignItems":"stretch","flexGrow":1,"flexShrink":1,"flexBasis":"0%","backgroundColor":"#070b16"},
-});
+}));

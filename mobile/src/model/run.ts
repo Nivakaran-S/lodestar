@@ -192,10 +192,12 @@ export function tripSummary(view: RunView | null): TripSummary {
     stops,
     delivered,
     unitsDelivered: pods.reduce((n, p) => n + (p.unitsDelivered ?? 0), 0),
-    unitsOrdered: pods.reduce((n, p) => n + (p.unitsOrdered ?? 0), 0),
+    // every stop's order counts, delivered or not ("0 of 51 units", never "0 of 0")
+    unitsOrdered: stops.reduce((n, st) => n + (st.pod?.unitsOrdered ?? st.order?.units ?? 0), 0),
     short: stops.filter(s => s.pod && s.pod.unitsDelivered < s.pod.unitsOrdered),
     exceptions: pods.reduce((n, p) => n + (p.exceptions?.length ?? 0), 0),
-    startedAt: trip.departTime ?? arrivals[0] ?? null,
+    // the departure time is set by the plan: a trip has started only once it is out
+    startedAt: trip.status === 'ENROUTE' || trip.status === 'COMPLETE' ? (trip.departTime ?? arrivals[0] ?? null) : (arrivals[0] ?? null),
     endedAt: leaves.at(-1) ?? null,
     nextTrip: view.trips.find(t => t.tripNumber > trip.tripNumber && stopsOf(t).some(s => s.status !== 'DELIVERED')) ?? null,
   };
