@@ -1,0 +1,80 @@
+# Nightly full stack: the part of tools/qa/gate.sh that used to run only by hand. Every night (02:00 Colombo) and on
+# demand, it builds and starts the whole stack from scratch with docker compose, then runs the Playwright projects
+# (api, web, mobile web, cross-role flows, every-click specs) and the frontend's Cypress suite. Reports and traces are
+# kept as artifacts for 14 days. Not run: the `visual` project (its baselines are rendered on Windows; fonts differ on
+# Linux runners, so it would fail on pixels, not behaviour) and SonarQube (the push workflow runs that).
+name: nightly-e2e
+
+on:
+  schedule:
+    - cron: '30 20 * * *'   # 20:30 UTC = 02:00 Asia/Colombo
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-e2e
+  cancel-in-progress: false
+
+jobs:
+  stack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            tests/e2e/package-lock.json
+            frontend/package-lock.json
+
+      - name: Full stack up (docker compose, built from this commit)
+        run: |
+          docker compose up -d --build
+          tools/qa/wait-stack.sh 1200
+
+      - name: Playwright · install
+        working-directory: tests/e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Playwright · api, web, mobile web, flows, every click
+        working-directory: tests/e2e
+        env:
+          E2E_REQUIRE_STACK: '1'
+          E2E_KEYCLOAK_URL: https://localhost:8443/auth
+          E2E_ISSUER: https://localhost:8443/auth/realms/lodestar
+          NODE_TLS_REJECT_UNAUTHORIZED: '0'
+          E2E_AGENT_CLIENT_SECRET: svc-agent-dev-only   # the compose stack's dev-only service secret
+        run: npx playwright test --project=api --project=web-chromium --project=mobile-web --project=flows --project=clicks
+
+      - name: Cypress · frontend (built app)
+        if: ${{ !cancelled() }}
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+          npm run e2e:ci
+
+      - name: Stack logs on failure
+        if: ${{ failure() }}
+        run: docker compose logs --no-color --tail=300 > stack-logs.txt || true
+
+      - name: Reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-e2e
+          if-no-files-found: ignore
+          retention-days: 14
+          path: |
+            tests/e2e/playwright-report
+            tests/e2e/test-results
+            frontend/cypress/screenshots
+            frontend/cypress/videos
+            stack-logs.txt
