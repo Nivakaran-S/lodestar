@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth/AuthProvider';
 import { directGrant, digits, type DirectResult } from '@/lib/auth/direct';
 import { landingFor, type Face } from '@/lib/auth/session';
 import { runtimeConfig } from '@/lib/config';
+import { Ic } from './icons';
 
 /** ?returnTo= of the sign-in screen (read once in the browser). */
 export function useReturnTo(): string | null {
@@ -152,6 +153,22 @@ export const bareInput: CSSProperties = {
   padding: 0,
   height: '100%',
 };
+
+/** The password box of the desk sign-ins, with a show/hide eye so a long password can be checked before sending. */
+export function PasswordInput({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
+  const [shown, setShown] = useState(false);
+  return (
+    <>
+      <input id={id} data-testid="password-input" type={shown ? 'text' : 'password'} autoComplete="current-password"
+        placeholder="Enter your password" style={bareInput} value={value} onChange={e => onChange(e.target.value)} />
+      <button type="button" data-testid="password-toggle" aria-label={shown ? 'Hide password' : 'Show password'} aria-pressed={shown}
+        onClick={() => setShown(v => !v)}
+        style={{ border: 0, background: 'transparent', padding: '4px', margin: '-4px', cursor: 'pointer', color: 'var(--text-3)', display: 'inline-flex' }}>
+        <Ic n={shown ? 'eye-off' : 'eye'} />
+      </button>
+    </>
+  );
+}
 
 /** Remembers a sign-in field on this computer for 30 days ("Remember this counter PC", "Trust this office computer"). */
 export const remembered = {

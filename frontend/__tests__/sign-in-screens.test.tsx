@@ -137,6 +137,17 @@ describe('DSP-06 → DSP-07 · work email, password, then the code', () => {
     expect(router.push).not.toHaveBeenCalled();
   });
 
+  it('the password has a placeholder and an eye that shows and hides it', () => {
+    signedOut(<PlanSignIn />);
+    const pw = screen.getByTestId('password-input');
+    expect(pw).toHaveAttribute('type', 'password');
+    expect(pw).toHaveAttribute('placeholder', 'Enter your password');
+    fireEvent.click(screen.getByRole('button', { name: 'Show password' }));
+    expect(pw).toHaveAttribute('type', 'text');
+    fireEvent.click(screen.getByRole('button', { name: 'Hide password' }));
+    expect(pw).toHaveAttribute('type', 'password');
+  });
+
   it('keeps Waypoint single sign-on as the secondary path', () => {
     const view = signedOut(<PlanSignIn />);
     fireEvent.click(screen.getByTestId('sso'));

@@ -230,8 +230,15 @@ export default function LiveSm01PlaceOrder() {
               <div className="d-sub">
                 {o ? `Delivered before your ${clock(o.windowClose)} opening · window ${o.windowOpen}–${o.windowClose} · ${o.dockType.toLowerCase().replace('_', ' ')}, ${o.parking.toLowerCase().replace('_', ' ')} access · ` : ''}
                 {"delivery date "}
-                <input className="lv-input" type="date" aria-label="Delivery date" value={runDate} min={tomorrow} onChange={e => setRunDate(e.target.value || next.runDate)}
-                  style={{ width: 'auto', display: 'inline-block', font: 'inherit', color: 'var(--brand-600)', fontWeight: 700 }} />
+                {/* the browser's own date box sizes and draws its icon differently everywhere: show the date and our
+                    calendar icon, with the real input laid transparently over both so a click anywhere opens the picker */}
+                <label style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--brand-600)', fontWeight: 700, cursor: 'pointer', verticalAlign: 'bottom' }}>
+                  <span data-testid="delivery-date">{fmtRunDate(runDate)}</span>
+                  <Ic n="calendar" className="ic ic--sm" />
+                  <input type="date" aria-label="Delivery date" value={runDate} min={tomorrow} onChange={e => setRunDate(e.target.value || next.runDate)}
+                    onClick={e => { try { e.currentTarget.showPicker?.(); } catch { /* already open, or not allowed */ } }}
+                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', border: 0, padding: 0 }} />
+                </label>
               </div>
             </div>
             <div className="vstack" style={{ gap: '2px', alignItems: 'flex-end', marginRight: '4px' }}>

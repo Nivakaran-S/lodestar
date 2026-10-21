@@ -8,7 +8,8 @@
 // the outlet's dock details are kept by the Lodestar admin (ADM-04, ADM-09), so "Invite" and "Request a change"
 // write to the admin (NEXT_PUBLIC_SUPPORT_EMAIL, else a call to NEXT_PUBLIC_SUPPORT_PHONE); with neither set they
 // say who to ask. "Discard" drops the edits and, as designed (L139), goes back to Deliveries. The sub-navigation
-// scrolls to its section.
+// is a set of tabs: each shows its own section (Store details, Receiving, Notifications, Users & access, Language);
+// edits made in one tab are kept while another is open, and "Save changes" saves them all.
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Btn from '@/components/live/Btn';
@@ -87,11 +88,8 @@ export default function LiveSm30Settings() {
   const setChannel = (t: (typeof TOPICS)[number], ch: keyof Channels, v: boolean) =>
     setDraft(d => ({ ...(d ?? {}), notifications: { ...(d?.notifications ?? {}), [t.k]: { ...channels(t), [ch]: v } } }));
   const setReceiving = (r: NonNullable<Preferences['receiving']>) => setDraft(d => ({ ...(d ?? {}), receiving: { ...(d?.receiving ?? {}), ...r } }));
-  const [section, setSection] = useState('receiving');
-  const goTo = (k: string) => {
-    setSection(k);
-    document.querySelector(`[data-section="${k}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
+  const [section, setSection] = useState('store');
+  const goTo = (k: string) => setSection(k);
   const outletRef = `${o?.name ?? 'our outlet'} (${session?.outletId ?? ''})`;
   const changeLink = adminLink(`Lodestar Store: dock details for ${outletRef}`,
     `Hello,\n\nPlease update the dock details drivers see for ${outletRef}.\nNow: ${o ? (o.accessNote || `${DOCK[o.dockType] ?? o.dockType}, ${PARKING[o.parking] ?? o.parking}, window ${o.windowOpen}-${o.windowClose}`) : ''}\nChange to: \n\nThank you,\n${session?.name ?? ''}`);
@@ -122,24 +120,36 @@ export default function LiveSm30Settings() {
           </div>
           <ErrorBanner error={prefs.error ?? prefs.save.error ?? outlet.error ?? users.error} onRetry={() => { void prefs.refresh(); void outlet.refresh(); void users.refresh(); }} />
           <div className="d-split">
-            <div className="sx-subnav">
+            <div className="sx-subnav" role="tablist" aria-label="Settings" aria-orientation="vertical">
               {SECTIONS.map(([k, icon, label]) => (
-                <span key={k} className={`d-side__item lv-click${section === k ? ' is-on' : ''}`} role="button" tabIndex={0}
-                  onClick={e => { e.stopPropagation(); goTo(k); }} onKeyDown={e => { if (e.key === 'Enter') goTo(k); }}>
+                <span key={k} className={`d-side__item lv-click${section === k ? ' is-on' : ''}`} role="tab" aria-selected={section === k} tabIndex={0}
+                  onClick={e => { e.stopPropagation(); goTo(k); }} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goTo(k); } }}>
                   <Ic n={icon} />{label}
                 </span>
               ))}
-              <div className="d-card" style={{ marginTop: '18px', padding: '16px', gap: '8px' }} data-testid="dock-note" data-section="store">
-                <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-3)' }}>{"Your dock, as drivers see it"}</span>
-                <span style={{ fontSize: '14px', lineHeight: '1.5', color: 'var(--text)' }}>
-                  {o ? (o.accessNote || `${DOCK[o.dockType] ?? o.dockType} · ${PARKING[o.parking] ?? o.parking} · window ${o.windowOpen}–${o.windowClose}`) : '…'}
-                </span>
-                {changeLink
-                  ? <a className="sx-link" style={{ fontSize: '13px' }} href={changeLink} data-testid="request-change">{"Request a change"}</a>
-                  : <span style={{ fontSize: '13px', color: 'var(--text-3)' }} data-testid="request-change">{"Your Lodestar admin changes these details."}</span>}
-              </div>
             </div>
-            <div className="vstack" style={{ gap: '18px', flex: '1', minWidth: '0' }}>
+            <div className="vstack" style={{ gap: '18px', flex: '1', minWidth: '0' }} role="tabpanel">
+              {section === 'store' && (
+              <div className="d-card" data-testid="dock-note" data-section="store">
+                <div className="d-card__head">
+                  <span className="d-card__title">{"Store details"}</span>
+                  <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>{"kept by your Lodestar admin"}</span>
+                  <div className="spacer" />
+                  {changeLink
+                    ? <a className="d-btn" style={{ height: '34px' }} href={changeLink} data-testid="request-change">{"Request a change"}</a>
+                    : <span style={{ fontSize: '13px', color: 'var(--text-3)' }} data-testid="request-change">{"Your Lodestar admin changes these details."}</span>}
+                </div>
+                {!o ? <Skeleton rows={4} /> : (
+                  <>
+                    <div className="sx-set-row"><div className="sx-set-row__main"><b>{o.name}</b><span>{`${session?.outletId ?? o.id} · supplied from ${depotName(o.depot)}`}</span></div></div>
+                    <div className="sx-set-row"><div className="sx-set-row__main"><b>{"Dock"}</b><span>{`${DOCK[o.dockType] ?? o.dockType} · ${PARKING[o.parking] ?? o.parking}`}</span></div></div>
+                    <div className="sx-set-row"><div className="sx-set-row__main"><b>{"Delivery window"}</b><span>{`${o.windowOpen}–${o.windowClose}`}</span></div></div>
+                    <div className="sx-set-row"><div className="sx-set-row__main"><b>{"Your dock, as drivers see it"}</b><span>{o.accessNote || `${DOCK[o.dockType] ?? o.dockType} · ${PARKING[o.parking] ?? o.parking} · window ${o.windowOpen}–${o.windowClose}`}</span></div></div>
+                  </>
+                )}
+              </div>
+              )}
+              {section === 'receiving' && (
               <div className="d-card" data-testid="receiving-staff" data-section="receiving">
                 <div className="d-card__head">
                   <span className="d-card__title">{"Receiving staff"}</span>
@@ -183,6 +193,8 @@ export default function LiveSm30Settings() {
                   </>
                 )}
               </div>
+              )}
+              {section === 'access' && (
               <div className="d-card" data-section="access">
                 <div className="d-card__head">
                   <span className="d-card__title">{"Users & access"}</span>
@@ -214,8 +226,8 @@ export default function LiveSm30Settings() {
                   <Btn className="sx-link" style={{ fontSize: '13px' }} onClick={() => void logout()}>{"Sign out"}</Btn>
                 </div>
               </div>
-            </div>
-            <div className="vstack" style={{ gap: '18px', width: '420px', flexShrink: '0' }}>
+              )}
+              {section === 'notifications' && (
               <div className="d-card" data-testid="store-notifications" data-section="notifications">
                 <div className="d-card__head">
                   <span className="d-card__title">{"Notifications"}</span>
@@ -244,6 +256,8 @@ export default function LiveSm30Settings() {
                   </div>
                 ))}
               </div>
+              )}
+              {section === 'language' && (
               <div className="d-card" data-section="language">
                 <div className="d-card__head"><span className="d-card__title">{"Language"}</span></div>
                 <div className="d-card__body">
@@ -259,6 +273,7 @@ export default function LiveSm30Settings() {
                   <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>{`For this desk${staffFrom ? ` · staff at the door from ${clock(staffFrom)}` : ''}. Staff phones keep their own setting.`}</span>
                 </div>
               </div>
+              )}
             </div>
           </div>
         </div>

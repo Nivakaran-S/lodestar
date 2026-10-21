@@ -126,9 +126,33 @@ function ReceiptCard({ stops, onDone, hub }: { stops: TripStop[]; onDone: () => 
   );
 }
 
+/**
+ * Where an order is on its way (Received → Planned → Loading → En route → Delivered). The order's own status, with
+ * the trip's: a planned order on a trip being loaded is at Loading. A deferred order stops at Planned ("deferred",
+ * it moved to another run), an exception at Delivered ("exception"), a cancelled one at Received ("cancelled").
+ */
+export function threadStep(order: Pick<Order, 'status'>, trip?: Pick<Trip, 'status'> | null): { at: number; note: string } {
+  switch (order.status) {
+    case 'DEFERRED': return { at: 1, note: 'deferred' };
+    case 'EXCEPTION': return { at: 4, note: 'exception' };
+    case 'CANCELLED': return { at: 0, note: 'cancelled' };
+    case 'PLANNED': return trip?.status === 'LOADING' ? { at: 2, note: '' } : { at: 1, note: '' };
+    default: return { at: Math.max(0, STEPS.indexOf(order.status)), note: '' };
+  }
+}
+
 function Thread({ order, stop, trip, stale = false }: { order: Order; stop?: TripStop; trip?: Trip; stale?: boolean }) {
-  const at = Math.max(0, STEPS.indexOf(order.status === 'DEFERRED' || order.status === 'EXCEPTION' ? 'PLANNED' : order.status));
-  const times = [fmtDay(order.orderedAt), order.status === 'RECEIVED' ? '' : 'planned', trip?.bay ? `bay ${trip.bay}` : '', trip?.departTime ? fmtClock(trip.departTime) : '', stop?.arrivalActual ? fmtClock(stop.arrivalActual) : stop?.etaModelBandEarly ? `${fmtClock(stop.etaModelBandEarly)}–${fmtClock(stop.etaModelBandLate)}` : ''];
+  const { at, note } = threadStep(order, trip);
+  const left = at > 3 || order.status === 'ENROUTE';
+  // planned times are marked as such ("dep ~3:30", "~6:20–6:50") until they have happened
+  const times = [
+    fmtDay(order.orderedAt),
+    order.status === 'RECEIVED' ? '' : 'planned',
+    trip?.bay ? `bay ${trip.bay}` : '',
+    trip?.departTime ? (left ? fmtClock(trip.departTime) : `dep ~${fmtClock(trip.departTime)}`) : '',
+    stop?.arrivalActual ? fmtClock(stop.arrivalActual) : stop?.etaModelBandEarly ? `~${fmtClock(stop.etaModelBandEarly)}–${fmtClock(stop.etaModelBandLate)}` : '',
+  ];
+  const labels = ['Received', 'Planned', at > 2 || order.status === 'LOADED' ? 'Loaded' : 'Loading', 'En route', 'Delivered'];
   return (
     <div className="thread thread--wide">
       {STEPS.flatMap((st, i) => {
@@ -137,8 +161,8 @@ function Thread({ order, stop, trip, stale = false }: { order: Order; stop?: Tri
         const step = (
           <div key={st} className={`thread__step ${done ? 'is-done' : now ? 'is-now' : ''}`}>
             <div className="thread__node">{done ? <Ic n="check" /> : now ? <Ic n="box" /> : null}</div>
-            <div className="thread__label">{['Received', 'Planned', 'Loading', 'En route', 'Delivered'][i]}</div>
-            <div className="thread__time">{now && !stale ? 'now' : times[i]}</div>
+            <div className="thread__label">{labels[i]}</div>
+            <div className="thread__time">{now && note ? note : now && !stale ? 'now' : times[i]}</div>
           </div>
         );
         return i < STEPS.length - 1 ? [step, <div key={`${st}-bar`} className={`thread__bar${i < at || order.status === 'DELIVERED' ? ' is-done' : ''}`} />] : [step];

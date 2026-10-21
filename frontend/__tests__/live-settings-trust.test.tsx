@@ -60,6 +60,17 @@ describe('sidebars carry the designed links again', () => {
 });
 
 describe('SM-30 Settings', () => {
+  it('each tab shows its own section, one at a time', async () => {
+    renderLive(<StoreSettings />, { session: SESSIONS.store, handler: req => (req.path.includes('MyPreferences') ? { value: {} } : fallback(req)) });
+    const shown = () => [...document.querySelectorAll('[data-section]')].map(e => e.getAttribute('data-section'));
+    expect(shown()).toEqual(['store']);
+    for (const [tab, key] of [[/Receiving/, 'receiving'], [/Notifications/, 'notifications'], [/Users & access/, 'access'], [/Language/, 'language'], [/Store details/, 'store']] as const) {
+      fireEvent.click(screen.getByRole('tab', { name: tab }));
+      expect(shown()).toEqual([key]);
+      expect(screen.getByRole('tab', { name: tab })).toHaveAttribute('aria-selected', 'true');
+    }
+  });
+
   it('loads the manager’s preferences, toggles SMS for "Van on the way" and saves only own sections', async () => {
     const view = renderLive(<StoreSettings />, {
       session: SESSIONS.store,
@@ -69,7 +80,9 @@ describe('SM-30 Settings', () => {
           : req.path.startsWith("Outlets('OUTT01')") ? { id: 'OUTT01', name: 'Waypoint Fresh Test', brand: 'FRESH', depot: 'KANDY', dockType: 'REAR_DOCK', parking: 'NORMAL', windowOpen: '05:30', windowClose: '08:00', accessNote: 'Lawson St lane' }
             : fallback(req),
     });
+    // Store details is the first tab; the others open from the tab list, and edits survive switching tabs
     expect(await screen.findByText('Lawson St lane')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /Notifications/ }));
     fireEvent.click(screen.getByLabelText('Van on the way SMS'));
     fireEvent.click(screen.getByText('Save changes'));
     await waitFor(() => expect(router.push).toHaveBeenCalledWith('/store/sm-02-deliveries'));
@@ -86,6 +99,7 @@ describe('SM-30 Settings', () => {
         ? { value: [{ id: 'u-s', name: 'Sam Store', role: 'STORE_MANAGER', self: true }, { id: 'u-r', name: 'Rita Receiver', role: 'STORE_MANAGER', self: false }] }
         : req.path.includes('MyPreferences') ? { value: {} } : fallback(req),
     });
+    fireEvent.click(screen.getByRole('tab', { name: /Users & access/ }));
     expect(await screen.findByText('Rita Receiver')).toBeInTheDocument();
     expect(view.calls.some(c => c.method === 'GET' && c.path.includes('Users/Lodestar.MyOutletUsers'))).toBe(true);
     const rows = document.querySelectorAll('[data-user]');
@@ -96,6 +110,7 @@ describe('SM-30 Settings', () => {
 
   it('shows only the signed-in manager when the directory has nobody for the outlet', async () => {
     renderLive(<StoreSettings />, { session: SESSIONS.store, handler: req => (req.path.includes('MyPreferences') ? { value: {} } : fallback(req)) });
+    fireEvent.click(screen.getByRole('tab', { name: /Users & access/ }));
     await waitFor(() => expect(document.querySelectorAll('[data-user]')).toHaveLength(1));
     expect(document.querySelector('[data-user="u-s"]')).toHaveTextContent('Sam Store');
   });
@@ -108,6 +123,7 @@ describe('SMS is offered only when the deployment sends it (SMS_ENABLED)', () =>
 
   it('SM-30 shows the SMS switches off and disabled, with the reason', async () => {
     renderLive(<StoreSettings />, { session: SESSIONS.store, handler: off });
+    fireEvent.click(screen.getByRole('tab', { name: /Notifications/ }));
     expect(await screen.findByTestId('sms-unavailable')).toHaveTextContent('Not available in this deployment');
     const sw = screen.getByLabelText('Van on the way SMS');
     expect(sw).toHaveAttribute('aria-disabled', 'true');

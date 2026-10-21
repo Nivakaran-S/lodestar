@@ -11,7 +11,7 @@ import { Ic } from '@/components/live/icons';
 import Btn from '@/components/live/Btn';
 import { useDepots } from '@/components/live/depots';
 import { needsCode, pendingPassword } from '@/lib/auth/direct';
-import { bareInput, remembered, SignInMessage, useDirectSignIn } from '@/components/live/DirectSignIn';
+import { bareInput, PasswordInput, remembered, SignInMessage, useDirectSignIn } from '@/components/live/DirectSignIn';
 
 export const DSP07 = '/plan/dsp-07-2-step-verification';
 
@@ -113,8 +113,7 @@ export default function LiveDsp06SignIn() {
               <label className="dx-label" htmlFor="dsp06-password">{"Password"}</label>
               <div className="dx-input">
                 <Ic n="lock" />
-                <input id="dsp06-password" data-testid="password-input" type="password" autoComplete="current-password"
-                  style={bareInput} value={password} onChange={e => setPassword(e.target.value)} />
+                <PasswordInput id="dsp06-password" value={password} onChange={setPassword} />
               </div>
             </div>
             <SignInMessage text={error} />

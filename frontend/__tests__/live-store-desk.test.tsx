@@ -4,7 +4,7 @@
 // each user action sends. Date is frozen (Mon 6 Apr 2026, 13:30 in Colombo) so countdowns and filters are fixed.
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import PlaceOrder from '@/live/sm-01-place-order';
-import Deliveries from '@/live/sm-02-deliveries';
+import Deliveries, { threadStep } from '@/live/sm-02-deliveries';
 import OrdersHistory from '@/live/sm-27-orders-and-history';
 import Receipts from '@/live/sm-28-receipts-and-credit-notes';
 import Messages from '@/live/sm-29-messages';
@@ -255,6 +255,18 @@ describe('SM-01 Place order', () => {
 // ------------------------------------------------------------------------------------------------ SM-02
 
 describe('SM-02 Deliveries', () => {
+  it('puts each order on the right step of Received → Planned → Loading → En route → Delivered', () => {
+    expect(threadStep({ status: 'RECEIVED' })).toEqual({ at: 0, note: '' });
+    expect(threadStep({ status: 'PLANNED' }, { status: 'PLANNED' })).toEqual({ at: 1, note: '' });
+    expect(threadStep({ status: 'PLANNED' }, { status: 'LOADING' })).toEqual({ at: 2, note: '' });
+    expect(threadStep({ status: 'LOADED' })).toEqual({ at: 2, note: '' });
+    expect(threadStep({ status: 'ENROUTE' })).toEqual({ at: 3, note: '' });
+    expect(threadStep({ status: 'DELIVERED' })).toEqual({ at: 4, note: '' });
+    expect(threadStep({ status: 'DEFERRED' })).toEqual({ at: 1, note: 'deferred' });
+    expect(threadStep({ status: 'EXCEPTION' })).toEqual({ at: 4, note: 'exception' });
+    expect(threadStep({ status: 'CANCELLED' })).toEqual({ at: 0, note: 'cancelled' });
+  });
+
   const stop = (id: string, o: object, over = {}) => ({ id, tripId: 'TRT1', orderId: (o as { id: string }).id, outletId: 'OUTT01', stopSeq: 2, status: 'PLANNED', etaPlan: '2026-04-07T00:45:00.000Z', order: o, trip: { id: 'TRT1', vehicleId: 'VEH057', status: 'ENROUTE', runDate: DAY, departTime: '2026-04-06T23:30:00.000Z' }, ...over });
 
   it('loading, then the empty states when the outlet has no delivery, order or notice', async () => {
