@@ -297,7 +297,8 @@
 /* A table's flexible last column ("What happened next" on DSP-17) keeps a readable width; a narrow window scrolls
    the table inside its card instead of breaking the header one letter per line */
 :is(.b-P2, .b-P5, .b-P6) .dx-tr > .dx-td[style*="flex"] { min-width: 160px; }
-:is(.b-P2, .b-P5, .b-P6) .d-tr > .d-td[style*="flex"] { min-width: 140px; }
+/* !important: the cells carry an inline min-width: 0, and the header and the cells must keep the same width */
+:is(.b-P2, .b-P5, .b-P6) .d-tr > .d-td[style*="flex"] { min-width: 140px !important; }
 /* a tag in a table cell (DSP-17 "To Wed 21 Oct, protected then") wraps inside its column instead of being cut */
 :is(.b-P2, .b-P5) .dx-tr > .dx-td .m-tag { white-space: normal; height: auto; min-height: 24px; padding-top: 3px; padding-bottom: 3px; }
 /* DSP-04: the map legend wraps on a phone instead of running off the map */
