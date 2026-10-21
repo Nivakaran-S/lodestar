@@ -40,6 +40,13 @@ def test_capacity_and_minutes():
     assert h.trip_km(travel, 2) == 2 * 12 + 5  # distance estimated from minutes
     assert h.trip_litres(50, 10) == 5.0 and h.trip_litres(50, None) == 0.0
     assert h.minutes_budget(["STYLE", "FRESH"]) == 270 and h.minutes_budget(["TECH"]) == 480
+    # the booklet's two budgets per vehicle: Fresh trips share 270 min, Style and Tech trips 480 min
+    fresh_200 = {"brand": "FRESH", "minutes": 200}
+    style_300 = {"brand": "STYLE", "minutes": 300}
+    assert h.minutes_by_group([fresh_200, style_300]) == {"FRESH": 200, "STYLE_TECH": 300}
+    assert h.over_budget([fresh_200, style_300]) == []  # 500 min in all, but each group is within its own budget
+    assert h.fits_budget([fresh_200], "TECH", 400) and not h.fits_budget([fresh_200], "FRESH", 80)
+    assert h.over_budget([fresh_200, {"brand": "FRESH", "minutes": 90}]) == [("FRESH", 290, 270)]
     assert h.service_minutes({}, "FRESH", "STREET") == h.DEFAULT_SERVICE_MIN
     assert h.fmt_min(h.to_min("03:30") + 95) == "05:05" and h.to_min(None, 7) == 7
 
@@ -125,9 +132,11 @@ def test_rule_checker_finds_each_violation():
     assert found["van_only"]["reason"] == "ACCESS"
     ctx.orders["O-5"]["kg"] = 1
     long = {**base, "trips": [{"vehicleId": "V-D1", "tripNo": 1, "orderIds": ["O-4"]}, {"vehicleId": "V-D1", "tripNo": 2, "orderIds": ["O-6", "O-5"]}]}
-    ctx.allowances[("STYLE", "REAR_DOCK")] = 400
-    found = {v["rule"] for v in check_rules(ctx, schedule(ctx, long))[1]}
-    assert {"time", "mall"} <= found
+    # the Style trip alone runs past the Style and Tech day (480 min): a Fresh trip on the same van does not count
+    ctx.allowances[("STYLE", "REAR_DOCK")] = 500
+    found = {v["rule"]: v for v in check_rules(ctx, schedule(ctx, long))[1]}
+    assert {"time", "mall"} <= set(found)
+    assert found["time"]["budgetGroup"] == "STYLE_TECH" and "Style and Tech" in found["time"]["detail"]
 
 
 def test_constraints_prioritise_then_avoid():

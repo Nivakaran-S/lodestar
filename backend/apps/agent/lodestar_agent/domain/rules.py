@@ -74,10 +74,12 @@ def check_rules(ctx: PlanningContext, plan: dict[str, Any]) -> tuple[list[dict[s
         last = trips[-1]
         if len(trips) > h.MAX_TRIPS_PER_VEHICLE:
             violations.append(_violation("trips", last, last["orderIds"], f"{vid} has {len(trips)} trips (max {h.MAX_TRIPS_PER_VEHICLE})"))
-        minutes = sum(t["minutes"] for t in trips)
-        budget = h.minutes_budget(t["brand"] for t in trips)
-        if minutes > budget:
-            violations.append(_violation("time", last, last["orderIds"], f"{vid} uses {minutes} of {budget} min"))
+        for group, minutes, budget in h.over_budget(trips):
+            label = "Fresh" if group == "FRESH" else "Style and Tech"
+            worst = [t for t in trips if h.budget_group(t["brand"]) == group][-1]
+            v_ = _violation("time", worst, worst["orderIds"], f"{vid} uses {minutes} of {budget} min on {label} trips")
+            v_["budgetGroup"] = group
+            violations.append(v_)
         quota = float(v.get("weeklyLFuel") or 0)
         if quota:
             litres = float(v.get("usedLThisWeek") or 0) + sum(t["litres"] for t in trips)

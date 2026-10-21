@@ -179,7 +179,7 @@ def test_trips_and_daily_minutes_within_limits(seed):
         assert ctx.vehicles[t["vehicleId"]]["status"] == "AVAILABLE"
     for trips in per_vehicle.values():
         assert len(trips) <= h.MAX_TRIPS_PER_VEHICLE
-        assert sum(t["minutes"] for t in trips) <= h.minutes_budget(t["brand"] for t in trips)
+        assert not h.over_budget(trips), h.minutes_by_group(trips)
 
 
 @pytest.mark.parametrize("seed", SEEDS)

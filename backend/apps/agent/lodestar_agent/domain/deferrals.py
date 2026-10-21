@@ -14,8 +14,7 @@ REASON_CODES = ("CAP_REEFER", "CAP_TIME", "ACCESS", "WINDOW", "FUEL", "VEH_DOWN"
 
 def _vehicle_minutes_ok(ctx: PlanningContext, plan: dict[str, Any], trip: dict[str, Any], new_trip: dict[str, Any]) -> bool:
     others = [t for t in plan["trips"] if t["vehicleId"] == trip["vehicleId"] and t["id"] != trip["id"]]
-    budget = h.minutes_budget([t["brand"] for t in others] + [new_trip["brand"]])
-    return sum(t["minutes"] for t in others) + new_trip["minutes"] <= budget
+    return h.fits_budget(others, new_trip["brand"], new_trip["minutes"])
 
 
 def _try_swap(ctx: PlanningContext, plan: dict[str, Any], pid: str) -> tuple[dict[str, Any], list[str]] | None:

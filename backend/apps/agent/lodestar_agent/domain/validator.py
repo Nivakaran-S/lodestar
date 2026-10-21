@@ -128,8 +128,7 @@ def validate_plan(
     for v in violations:
         code = RULE_CODE_MAP[v["rule"]]
         if v["rule"] == "time":
-            brands = {t["brand"] for t in clean_trips if t["vehicleId"] == v["vehicleId"]}
-            code = "FRESH_TIME_BUDGET_EXCEEDED" if h.minutes_budget(brands) == h.FRESH_MINUTES_BUDGET else "STYLE_TECH_TIME_BUDGET_EXCEEDED"
+            code = "FRESH_TIME_BUDGET_EXCEEDED" if v.get("budgetGroup") == "FRESH" else "STYLE_TECH_TIME_BUDGET_EXCEEDED"
         errors.append(_err(code, v["detail"], list(v["orderIds"]), v["vehicleId"], v["tripId"], rule=v["rule"]))
 
     decided = set(decided or set()) | {u["orderId"] for u in plan.get("unassigned", [])}

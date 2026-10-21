@@ -17,7 +17,7 @@ This is the single source of truth that the backend, the agent service, infrastr
 | `sync` | NestJS | 3007 | OfflineEvents (offline queue replay, conflict detection) |
 | `notifications` | NestJS + Socket.IO | 3008 | Notifications, realtime |
 | `audit` | NestJS | 3009 | AuditEntries (append-only, hash chained) |
-| `agent` | Python 3.12, FastAPI, **LangGraph**, mock chat model | 8000 | planning-agent runs (drafts only, never publishes) |
+| `agent` | Python 3.12, FastAPI, **LangGraph**, Gemini → Groq → deterministic template (`AGENT_MODEL`, compose default `gemini`; without keys it drafts with the template) | 8000 | planning-agent runs (drafts only, never publishes) |
 | `postgres` | PostgreSQL 16 | 5432 (data network only) | all persistence (one schema per service: `orders`, `planning`, …) |
 | `frontend` | Next.js (start page `/`, desk faces: Store desk, Plan, Admin) | 3000 | UI |
 | `mobile-web` | Expo web export served by NGINX (browser build of the field app, `experiments.baseUrl` `/field`) | 8080, routed by the gateway at `/field/` (no host port) | UI |
@@ -84,7 +84,7 @@ The graph (`backend/apps/agent`), one run per depot and run date:
 
 1. `load_context`: reads Orders, Vehicles, Outlets, Calendar and DistrictTravel via OData with its service token.
 2. `draft_plan`: uses the capacity and packing heuristics (chilled on reefers, 1 brand + 1 district per trip, max 2 trips per vehicle, windows).
-3. `check_rules`: the 7 booklet hard rules plus window close at every stop. On a violation it loops back to `draft_plan` with constraints, at most 3 times.
+3. `check_rules`: the 7 booklet hard rules plus window close at every stop. On a violation it loops back to `draft_plan` with constraints, at most `AGENT_MAX_REPAIR_ATTEMPTS` times (default 2). Time budgets are per vehicle and per brand group, as in the booklet: its Fresh trips together ≤ 270 min, its Style and Tech trips together ≤ 480 min.
 4. `rank_deferrals`: protected outlets are never deferred, and each deferral gets a reason code.
 5. `explain`: the model writes the "What it did / what it checked" text shown on DSP-02.
 6. `await_approval`: a LangGraph interrupt. The run stops at status `NEEDS_APPROVAL`. Only a human `dispatcher` can resume it, with `approve`, `edit` or `reject`. **The agent can never publish a plan.**
@@ -103,7 +103,7 @@ The graph (`backend/apps/agent`), one run per depot and run date:
 
 An order for a run date must be placed before **4:00 PM Asia/Colombo on the day before**. The orders service enforces this; the apps only mirror it.
 
-- **Store managers:** after the cut-off, `POST Orders` returns 422 `OrderCutoffPassed`, naming the next run they can order for. Editing an order (or moving it to another run) is refused the same way. The field app opens SM-23 "Orders closed".
+- **Store managers:** a new order placed after the cut-off is not refused: it moves to the next run it can make, with a note saying so ("Placed after the 4:00 PM cut-off for …; moved to the … run", `order-cutoff.ts`). Editing an order, or moving it to another run, after the cut-off is refused with 422 `OrderCutoffPassed`. The field app opens SM-23 "Orders closed".
 - **Offline stores:** an order saved on the phone before the cut-off still counts if it syncs within `ORDER_OFFLINE_GRACE_HOURS` (default 6). The app sends the time it was saved as `orderedAt`. A phone clock ahead of the server is ignored.
 - **Dispatch:** a dispatcher (or admin) may log a late phone order (DSP-10) with a `lateReason`. Without one the order is refused with 422 `LateReasonRequired`. The order is stored with `latePhone = true`.
 - **Switch:** `ENFORCE_ORDER_CUTOFF=false` turns the cut-off off, for demos on past scenario dates.

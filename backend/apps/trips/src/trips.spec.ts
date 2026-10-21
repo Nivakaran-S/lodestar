@@ -192,6 +192,7 @@ describe('TripsService', () => {
   let loadRecord: LoadRecordDelegate;
   let tripStop: StopDelegate;
   let user: FindManyDelegate;
+  let txVehicleClass: 'AMBIENT' | 'CHILLED' = 'AMBIENT';
 
   beforeEach(() => {
     trip = mock<TripDelegate>();
@@ -200,7 +201,10 @@ describe('TripsService', () => {
     txPod = mock<PodDelegate>();
     txOrder = mock<UpdateDelegate>();
     txStop = mock<UpdateDelegate>();
-    const tx = { trip: instance(txTrip), loadRecord: instance(txLoad), pOD: instance(txPod), order: instance(txOrder), tripStop: instance(txStop) };
+    // the vehicle of a release: ambient unless a test says it is a reefer (txVehicleClass)
+    txVehicleClass = 'AMBIENT';
+    const txVehicle = { findUnique: async () => ({ tempClass: txVehicleClass }) };
+    const tx = { trip: instance(txTrip), loadRecord: instance(txLoad), pOD: instance(txPod), order: instance(txOrder), tripStop: instance(txStop), vehicle: txVehicle };
     travel = mock<TravelDelegate>();
     loadRecord = mock<LoadRecordDelegate>();
     tripStop = mock<StopDelegate>();
@@ -385,6 +389,21 @@ describe('TripsService', () => {
       const t = capture(txTrip.update).last()[0];
       expect(t.data).toMatchObject({ status: 'ENROUTE', sealNumber: 'SEAL-1', reeferTempC: 4 });
       expect(t.data.departTime).toBe(lr.data.releasedAt);
+    });
+
+    it('lets a reefer leave only at or below 4 °C, with the reading sent or the pre-cool one on the load record', async () => {
+      txVehicleClass = 'CHILLED';
+      when(txLoad.findUnique(anything())).thenResolve({ tripId: 'T1', vehicleId: 'VEH057', reeferTempC: null });
+      await expect(service.release('T1', 'SEAL-1')).rejects.toMatchObject({ status: 409, message: expect.stringMatching(/Read the reefer first/) });
+      await expect(service.release('T1', 'SEAL-1', 6.5)).rejects.toMatchObject({ status: 409, message: expect.stringMatching(/6.5 °C, above 4 °C/) });
+      verify(txTrip.update(anything())).never();
+      verify(notify.publish(anything(), anything(), anything())).never();
+      await expect(service.release('T1', 'SEAL-1', 4)).resolves.toMatchObject({ data: { status: 'ENROUTE' } });
+      // the pre-cool reading recorded at the bay counts when the release carries none
+      when(txLoad.findUnique(anything())).thenResolve({ tripId: 'T1', vehicleId: 'VEH057', reeferTempC: 3.2 });
+      await expect(service.release('T1', 'SEAL-1')).resolves.toMatchObject({ data: { status: 'ENROUTE' } });
+      when(txLoad.findUnique(anything())).thenResolve({ tripId: 'T1', vehicleId: 'VEH057', reeferTempC: 7 });
+      await expect(service.release('T1', 'SEAL-1')).rejects.toMatchObject({ status: 409 });
     });
 
     it('omits the reefer temperature when not given', async () => {

@@ -179,3 +179,13 @@ sudo systemctl enable --now lodestar-autodeploy.timer
 ```
 
 `disable` keeps k3s from starting again at the next reboot and racing Caddy for the ports (and for the memory). The two sides have separate databases; each seeds its own demo day. Both use the same `.env`, so the passwords are the same on either side.
+
+## Backups
+
+`autodeploy.sh` runs `backup.sh` once a day. That's a `pg_dumpall` of the one Postgres (Lodestar's schemas and Keycloak's database), gzipped into `backups/` on the VM and kept for `BACKUP_KEEP_DAYS` days (default 7). A dump that ends early is discarded, and a failed backup is retried an hour later. For copies off the VM, set `BACKUP_AZ_CONTAINER_SAS` in `.env` to a write-only SAS URL of a Blob container. Each dump is then uploaded there as well.
+
+Restore (stop the services first, then):
+
+```
+gunzip -c backups/lodestar-<stamp>.sql.gz | docker exec -i $(docker ps -qf label=com.docker.compose.service=postgres) psql -U lodestar -d postgres
+```

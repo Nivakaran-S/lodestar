@@ -38,7 +38,7 @@ The personas come from `backend/identity/lodestar-realm.json`. Their passwords a
 | Admin | `admin` | `admin` | |
 
 Tokens come from `tests/e2e/lib/auth.ts`:
-- It tries the password grant first. `lodestar-web` ships with direct access grants off, so the helper then falls back to authorization code + PKCE through Keycloak's login form, over HTTP.
+- It tries the password grant first. `lodestar-web` and `lodestar-field` have direct access grants on (`backend/identity/lodestar-realm.json`; the designed sign-in screens post straight to the token endpoint), so this normally succeeds. If a realm has them off, the helper falls back to authorization code + PKCE through Keycloak's login form, over HTTP.
 - `loginViaUi(page, persona)` drives the same form in a browser.
 
 ## Running locally
@@ -56,7 +56,7 @@ npm run typecheck       # app, Jest (tsconfig.jest.json) and Cypress (cypress/ts
 
 Every desk screen (`frontend/app/<store|plan|admin>/<screen>`) can show two things:
 
-- **Live** (the default): the screen signs in through Keycloak and shows real data. A screen with a hand-written `frontend/live/<screen-key>.tsx` renders it (32 screens; `tools/screengen/gen-web.js` wires them); the others show the design. Every face route sits behind a guard (`app/<face>/layout.tsx`): no session → Keycloak; another role → that role's face. Sign-in, reset-access and session-expired screens stay public.
+- **Live** (the default): the screen signs in through Keycloak and shows real data. A screen with a hand-written `frontend/live/<screen-key>.tsx` renders it (all 63 desk screens; `tools/screengen/gen-web.js` wires them); the others show the design. Every face route sits behind a guard (`app/<face>/layout.tsx`): no session → Keycloak; another role → that role's face. Sign-in, reset-access and session-expired screens stay public.
 - **Design preview**: the static, clickable prototype, with no sign-in and no API. `?design=1` turns it on for the tab (sessionStorage `lodestar.design`), `?design=0` turns it off. Cypress `openScreen()` and the untagged Playwright web smoke use it. Build with `NEXT_PUBLIC_DESIGN_PREVIEW=off` to disable the switch, or `NEXT_PUBLIC_LODESTAR_MODE=design` for a prototype-only build.
 
 Endpoints come from the page origin (gateway): API `/odata/v4`, Keycloak `/auth/realms/lodestar` (client `lodestar-web`), Socket.IO `/ws/`. Override them at build time with `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_OIDC_AUTHORITY`, `NEXT_PUBLIC_OIDC_CLIENT_ID` and `NEXT_PUBLIC_WS_URL` (Docker build args in `frontend/Dockerfile`).

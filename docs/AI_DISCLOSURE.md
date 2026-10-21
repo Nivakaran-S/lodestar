@@ -313,3 +313,11 @@ The Adagard team is responsible for ensuring that this document accurately repre
 - The demonstration video.
 
 AI tools assisted the team, but the team owns, reviewed, tested and approved the final submitted work.
+---
+
+## Correction (21 October 2026)
+
+Two statements above did not match the code at the submission deadline (last pre-deadline commit `36d042e`, 4 October 2026, 23:54 Colombo). We record the correction here instead of rewriting the reviewed text.
+
+- **Agent model (section 1, "configurable agent model setting").** From commit `5541b5f` (4 October, 21:35) the planning agent's language-model chain is Gemini first, Groq as the fallback, and the deterministic template last. `docker-compose.yml` defaults `AGENT_MODEL` to `gemini` (commit `6379696`). Without API keys the agent drafts with the template, so what the demo deployment ran depends on that server's environment, which the repository does not record. What the text says about authority still holds: the model never decides the allocation. Every draft is checked by the deterministic rules and validator, and only the dispatcher can approve and publish it.
+- **Computer-vision autofill (section 1.4).** From commit `10fcd7e` (3 October) the Dock app can read the reefer's display from a photo. This runs on our own OCR service (`backend/apps/ocr`: RapidOCR, PaddleOCR PP-OCRv4 mobile models on ONNX Runtime, CPU only), not an external AI API. The value read is shown for the loader to confirm or correct, and nothing is saved until they confirm. Seal and damage scanning remain unimplemented.

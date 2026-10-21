@@ -118,7 +118,37 @@ def service_minutes(allowances: Mapping[tuple[str, str], int], brand: str, dock_
     return int(allowances.get((brand, dock_type), DEFAULT_SERVICE_MIN))
 
 
+def budget_group(brand: str) -> str:
+    """The booklet's two daily time budgets per vehicle: Fresh trips share one, Style and Tech trips the other."""
+    return "FRESH" if brand == "FRESH" else "STYLE_TECH"
+
+
+def group_budget(group: str) -> int:
+    return FRESH_MINUTES_BUDGET if group == "FRESH" else OTHER_MINUTES_BUDGET
+
+
+def minutes_by_group(trips: Iterable[Mapping[str, Any]]) -> dict[str, int]:
+    """A vehicle's minutes per budget group: sum of its Fresh trips, sum of its Style and Tech trips."""
+    out: dict[str, int] = {}
+    for t in trips:
+        g = budget_group(t["brand"])
+        out[g] = out.get(g, 0) + int(t.get("minutes") or 0)
+    return out
+
+
+def fits_budget(trips: Iterable[Mapping[str, Any]], brand: str, minutes: int) -> bool:
+    """Would a trip of ``brand`` taking ``minutes`` fit the vehicle's budget for that brand's group?"""
+    g = budget_group(brand)
+    return minutes_by_group(trips).get(g, 0) + minutes <= group_budget(g)
+
+
+def over_budget(trips: Iterable[Mapping[str, Any]]) -> list[tuple[str, int, int]]:
+    """The budget groups a vehicle's trips exceed: (group, minutes used, budget)."""
+    return [(g, m, group_budget(g)) for g, m in sorted(minutes_by_group(trips).items()) if m > group_budget(g)]
+
+
 def minutes_budget(brands: Iterable[str]) -> int:
+    """Deprecated single budget (270 if any trip is Fresh): kept for callers outside the planner; use the groups."""
     return FRESH_MINUTES_BUDGET if "FRESH" in set(brands) else OTHER_MINUTES_BUDGET
 
 

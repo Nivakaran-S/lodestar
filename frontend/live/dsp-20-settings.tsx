@@ -225,7 +225,7 @@ export default function LiveDsp20Settings() {
                       <Kv label="Chilled order"><span style={{ fontSize: '14px', color: 'var(--text)' }}>{signed(r.deferral.weights.chilled)}</span></Kv>
                       <Kv label="Fresh, before the store opens"><span style={{ fontSize: '14px', color: 'var(--text)' }}>{signed(r.deferral.weights.freshBeforeOpening)}</span></Kv>
                       <Kv label="Next run within 24 h"><span style={{ fontSize: '14px', color: 'var(--st-delivered-fg)' }}>{signed(r.deferral.weights.nextRunWithin24h)}</span></Kv>
-                      <Kv label="Stock cover"><span style={{ fontSize: '14px', color: 'var(--text)' }}>{`${signed(r.deferral.weights.stockCoverPerDay)} a day of cover, up to ${signed(-r.deferral.weights.stockCoverCap)}`}</span></Kv>
+                      <Kv label="Stock cover"><span style={{ fontSize: '14px', color: 'var(--text)' }}>{`${signed(r.deferral.weights.stockCoverPerDay)} a day of cover, up to ${signed(-r.deferral.weights.stockCoverCap)}`}<span style={{ display: 'block', fontSize: '13px', color: 'var(--text-3)' }}>{"Not applied yet: stores don't send stock levels to Lodestar"}</span></span></Kv>
                     </>
                   )}
                   <div className="hstack" style={{ gap: '12px', marginTop: '10px', fontSize: '14px' }}>

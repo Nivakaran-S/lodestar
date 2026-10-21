@@ -18,7 +18,9 @@ export const DRIVER_REPORTS = ['PROBLEM', 'DELAY', 'REEFER_TEMP', 'VEHICLE_CHECK
 export type DriverReportKind = (typeof DRIVER_REPORTS)[number];
 
 /** Chilled loads must stay at or below this (°C, DR-37's limit); a warmer reefer reading is a REEFER_FAIL. */
-export const REEFER_MAX_C = 4;
+import { REEFER_MAX_C } from '@lodestar/platform';
+
+export { REEFER_MAX_C };
 
 /** The longest delay a DELAY report moves the ETAs by (minutes). */
 const MAX_DELAY_MIN = 600;

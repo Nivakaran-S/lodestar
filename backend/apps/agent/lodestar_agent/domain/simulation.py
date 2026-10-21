@@ -56,12 +56,14 @@ def simulate_plan(ctx: PlanningContext, plan: dict[str, Any], deferrals: list[di
     vehicles_out = []
     for vid, trips in sorted(by_vehicle.items()):
         v = ctx.vehicles.get(vid, {})
-        minutes = sum(t["minutes"] for t in trips)
-        budget = h.minutes_budget(t["brand"] for t in trips)
+        by_group = h.minutes_by_group(trips)
+        # the vehicle's binding budget: the group closest to its limit (Fresh 270 or Style and Tech 480)
+        group = max(by_group, key=lambda g: by_group[g] / h.group_budget(g)) if by_group else "STYLE_TECH"
+        minutes, budget = by_group.get(group, 0), h.group_budget(group)
         litres = round(sum(t["litres"] for t in trips), 1)
         quota = float(v.get("weeklyLFuel") or 0)
         week = float(v.get("usedLThisWeek") or 0) + litres
-        vehicles_out.append({"vehicleId": vid, "trips": len(trips), "minutes": minutes, "budget": budget, "litres": litres, "weekFuelPct": _pct(week, quota) if quota else None})
+        vehicles_out.append({"vehicleId": vid, "trips": len(trips), "minutes": minutes, "budget": budget, "minutesByGroup": by_group, "litres": litres, "weekFuelPct": _pct(week, quota) if quota else None})
         if minutes >= budget * NEAR_FULL_PCT / 100:
             warnings.append({"code": "NEAR_TIME_BUDGET", "vehicleId": vid, "message": f"{vid} uses {minutes} of {budget} min"})
         if quota and week >= quota * FUEL_LOW_PCT / 100:

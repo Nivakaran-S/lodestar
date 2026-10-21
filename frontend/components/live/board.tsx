@@ -92,8 +92,15 @@ export function TripCard({ c, v, limits, onOpen }: { c: Card; v?: Vehicle; limit
 }
 
 export function Lane({ vehicleId, cards, v, limits, onOpen }: { vehicleId: string; cards: Card[]; v?: Vehicle; limits?: PlanLimits; onOpen?: (c: Card) => void }) {
-  const minutes = cards.reduce((s, c) => s + c.minutes, 0);
-  const max = budget(cards[0]?.brand ?? 'FRESH', limits);
+  // the booklet's two budgets: Fresh trips share one (270 min), Style and Tech trips the other (480 min). The lane shows
+  // the group closest to its limit; a vehicle with both says so under the bar.
+  const groups = (['FRESH', 'OTHER'] as const)
+    .map(g => ({ g, minutes: cards.filter(c => (c.brand === 'FRESH') === (g === 'FRESH')).reduce((s, c) => s + c.minutes, 0), max: budget(g === 'FRESH' ? 'FRESH' : 'STYLE', limits) }))
+    .filter(x => cards.some(c => (c.brand === 'FRESH') === (x.g === 'FRESH')));
+  const bind = [...groups].sort((a, b) => (b.max ? b.minutes / b.max : 0) - (a.max ? a.minutes / a.max : 0))[0];
+  const minutes = bind?.minutes ?? 0;
+  const max = bind?.max ?? budget('FRESH', limits);
+  const other = groups.find(x => x !== bind);
   const reefer = v?.tempClass === 'CHILLED';
   return (
     <div className="x-lane" data-vehicle={vehicleId}>
@@ -102,6 +109,7 @@ export function Lane({ vehicleId, cards, v, limits, onOpen }: { vehicleId: strin
         <div className="x-veh__type">{reefer ? 'Reefer' : 'Dry'} {v?.type === 'VAN' ? 'van' : 'truck'} · {fmtNum(v?.capacityM3, 1)} m³</div>
         <div className="x-veh__min"><span>{minutes}<small>/ {max ?? '—'} min</small></span></div>
         <div className="x-veh__bar"><div style={{ width: `${pct(minutes, max)}%` }} /></div>
+        {other && <div className="x-veh__type" data-testid="other-budget">{other.g === 'FRESH' ? 'Fresh' : 'Style/Tech'} {other.minutes}/{other.max ?? '—'} min</div>}
         {v && <div className="x-veh__fuel"><span className="hstack" style={{ gap: '5px' }}><Ic n="fuel" /><b>{v.usedLThisWeek}</b>/ {v.weeklyLFuel} L</span></div>}
       </div>
       {cards.slice(0, 2).map(c => <TripCard key={c.id} c={c} v={v} limits={limits} onOpen={onOpen} />)}

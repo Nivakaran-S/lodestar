@@ -42,7 +42,11 @@ export const DEFAULT_ALERT_RULES = {
   signalZones: { alert: false },
 };
 
-/** Validation targets the estimators are held to (Datathon brief). Targets, not measurements. */
+/**
+ * Validation targets the estimators are held to: the team's own, set with headroom over the Datathon hold-out results
+ * (service-time MAE 3.72 min, late ROC-AUC 0.978, weekly-volume WAPE 3.8%; datathon/Adagard_Datathon/README.md).
+ * The booklet sets no targets. Targets, not measurements.
+ */
 export const MODEL_TARGETS = {
   serviceTime: { metric: 'MAE', comparator: '<=', value: 4, unit: 'min a stop' },
   lateness: { metric: 'AUC', comparator: '>=', value: 0.8, unit: null },
@@ -83,17 +87,29 @@ export interface StopOutcome {
   leaveActual: Date | null;
   runDate: Date;
   windowClose: string;
+  /** The outlet's window opening (HH:mm): a van that arrives early waits, and the wait is not service. */
+  windowOpen?: string | null;
 }
 
 /** Fewest outcomes a figure is reported from: below it a score is noise (AUC 0 from four stops), so it waits. */
 export const MIN_SCORED_STOPS = 10;
 export const MIN_AUC_EACH = 3;
 
-/** Mean absolute error of predicted vs actual minutes at the stop (arrival to leave). */
+/** When service began: the arrival, or the window opening for a van that arrived early and waited. */
+export function serviceStart(r: Pick<StopOutcome, 'arrivalActual' | 'runDate' | 'windowOpen'>): Date {
+  if (!r.windowOpen) return r.arrivalActual!;
+  const open = r.runDate.getTime() + (minutesOfHhmm(r.windowOpen) - BUSINESS_UTC_OFFSET_MIN) * 60_000;
+  return new Date(Math.max(r.arrivalActual!.getTime(), open));
+}
+
+/**
+ * Mean absolute error of predicted vs actual minutes at the stop: leave − max(arrival, window opening), the quantity
+ * the service-time model predicts (the Datathon label), so an early arrival's wait does not count as service.
+ */
 export function serviceTimeMae(rows: StopOutcome[]): Measured {
   const errs = rows
     .filter((r) => r.serviceMinPredicted !== null && r.arrivalActual && r.leaveActual && r.leaveActual >= r.arrivalActual)
-    .map((r) => Math.abs(r.serviceMinPredicted! - (r.leaveActual!.getTime() - r.arrivalActual!.getTime()) / 60_000));
+    .map((r) => Math.abs(r.serviceMinPredicted! - Math.max(0, r.leaveActual!.getTime() - serviceStart(r).getTime()) / 60_000));
   if (!errs.length) return { value: null, n: 0, reason: 'No stop has both a predicted and an actual service time yet' };
   if (errs.length < MIN_SCORED_STOPS) return { value: null, n: errs.length, reason: `${errs.length} stop${errs.length === 1 ? '' : 's'} with an actual service time so far; scored from ${MIN_SCORED_STOPS}` };
   return { value: Math.round((errs.reduce((s, e) => s + e, 0) / errs.length) * 10) / 10, n: errs.length };
@@ -185,12 +201,12 @@ export async function measureModels(prisma: PrismaService, depots: string[] | nu
     where: { arrivalActual: { not: null }, ...(depots ? { trip: { is: { depot: { in: depots } } } } : {}) },
     select: {
       serviceMinPredicted: true, lateRiskPct: true, arrivalActual: true, leaveActual: true,
-      trip: { select: { runDate: true } }, outlet: { select: { windowClose: true } },
+      trip: { select: { runDate: true } }, outlet: { select: { windowOpen: true, windowClose: true } },
     },
   });
   const rows: StopOutcome[] = stops.map((s) => ({
     serviceMinPredicted: s.serviceMinPredicted, lateRiskPct: s.lateRiskPct, arrivalActual: s.arrivalActual, leaveActual: s.leaveActual,
-    runDate: s.trip.runDate, windowClose: s.outlet.windowClose,
+    runDate: s.trip.runDate, windowClose: s.outlet.windowClose, windowOpen: s.outlet.windowOpen,
   }));
   const demand = await measureDemand(prisma, depots);
   return {

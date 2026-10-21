@@ -1,8 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@lodestar/prisma';
 import { ODataError } from '@lodestar/odata';
-import { OrderStatus, Prisma, TripStatus } from '@prisma/client';
-import { MlClient, runDateRange } from '@lodestar/platform';
+import { OrderStatus, Prisma, TempClass, TripStatus } from '@prisma/client';
+import { MlClient, REEFER_MAX_C, runDateRange } from '@lodestar/platform';
 import {
   announceStopIssue, CLOSED_STOP_STATUSES, depotDispatchers, NOTIFY, NotifyClient, podExceptionsWithStoreCount, podOutcome, recordArrival, recordDeparture,
   linkPodPhotos, storeManagers,
@@ -146,6 +146,13 @@ export class TripsService {
       }
       const record = await tx.loadRecord.findUnique({ where: { tripId } });
       if (!record) throw ODataError.conflict('The trip has no load record yet; record the load first');
+      // a reefer leaves only cold: the reading sent with the release, else the pre-cool reading on the load record
+      const vehicle = await tx.vehicle.findUnique({ where: { id: record.vehicleId }, select: { tempClass: true } });
+      if (vehicle?.tempClass === TempClass.CHILLED) {
+        const reading = reeferTempC ?? record.reeferTempC ?? undefined;
+        if (reading === undefined || reading === null) throw ODataError.conflict(`Read the reefer first: a chilled vehicle needs a reading at or below ${REEFER_MAX_C} °C to leave`);
+        if (reading > REEFER_MAX_C) throw ODataError.conflict(`The reefer reads ${reading} °C, above ${REEFER_MAX_C} °C: it can't depart`);
+      }
       const now = new Date();
       await tx.loadRecord.update({
         where: { tripId },

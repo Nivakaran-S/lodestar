@@ -1,5 +1,5 @@
 import { DeferralScoringService } from './deferral-scoring.service';
-import { arrivedLate, DEFERRAL_WEIGHTS, latenessAuc, measureModels, planningRules, PROTECTED_SCORE, serviceTimeMae, StopOutcome } from './planning-rules';
+import { arrivedLate, DEFERRAL_WEIGHTS, latenessAuc, measureModels, planningRules, PROTECTED_SCORE, serviceStart, serviceTimeMae, StopOutcome } from './planning-rules';
 
 const run = new Date('2026-04-07T00:00:00Z');
 const at = (hhmm: string) => new Date(`2026-04-07T${hhmm}:00+05:30`);
@@ -31,6 +31,16 @@ describe('planning rules (Plans/Lodestar.PlanningRules)', () => {
     // too few to judge: no figure, and says how many there are
     expect(serviceTimeMae(two)).toMatchObject({ value: null, n: 2, reason: expect.stringMatching(/2 stops .* scored from 10/) });
     expect(serviceTimeMae(Array.from({ length: 5 }, () => two).flat())).toEqual({ value: 2, n: 10 });
+  });
+
+  it('measures service time from the window opening when the van arrived early (the wait is not service)', () => {
+    // arrived 05:00, window opens 05:30, left 05:45: 15 min of service, not 45
+    const early = stop({ serviceMinPredicted: 15, arrivalActual: at('05:00'), leaveActual: at('05:45'), windowOpen: '05:30' });
+    expect(serviceStart(early).getTime()).toBe(at('05:30').getTime());
+    expect(serviceTimeMae(Array.from({ length: 10 }, () => early))).toEqual({ value: 0, n: 10 });
+    // arriving after the window opened: from the arrival
+    const late = stop({ serviceMinPredicted: 15, arrivalActual: at('06:00'), leaveActual: at('06:20'), windowOpen: '05:30' });
+    expect(serviceTimeMae(Array.from({ length: 10 }, () => late))).toEqual({ value: 5, n: 10 });
   });
 
   it('measures lateness AUC against arrival after the window close, or says why not', () => {

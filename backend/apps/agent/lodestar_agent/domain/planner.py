@@ -232,8 +232,9 @@ def draft_plan(ctx: PlanningContext, constraints: list[dict[str, Any]] | None = 
             placed: list[str] = []
             for v in candidates():
                 vid = v["id"]
-                used = sum(t["minutes"] for t in vehicle_trips[vid])
-                budget = h.minutes_budget([t["brand"] for t in vehicle_trips[vid]] + [brand])
+                # the booklet's budgets per vehicle: Fresh trips share 270 min, Style and Tech trips 480 min
+                used = h.minutes_by_group(vehicle_trips[vid]).get(h.budget_group(brand), 0)
+                budget = h.group_budget(h.budget_group(brand))
                 fuel_left = _fuel_left(v, sum(t["litres"] for t in vehicle_trips[vid]))
                 prev_return = vehicle_trips[vid][-1]["returns"] if vehicle_trips[vid] else 0
                 kg = m3 = 0.0

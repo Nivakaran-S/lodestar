@@ -42,3 +42,4 @@ backend/coverage-int/
 /.deploy-freeze
 tests/e2e/playwright-report/
 .scannerwork/
+backups/
