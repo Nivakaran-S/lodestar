@@ -49,6 +49,8 @@ def build_runtime(settings: Settings) -> tuple[AgentRuntime, list[Any]]:
         max_redrafts=settings.max_redrafts,
         first_departure=settings.first_departure,
         router=router_for(settings, model),
+        allocator=settings.allocator,
+        allocation_time_limit=settings.allocation_time_limit_s,
     )
     return runtime, [http.close, checkpointing.close]
 

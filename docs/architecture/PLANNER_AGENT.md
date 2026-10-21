@@ -78,6 +78,18 @@ All prompts share one short safety policy: use only the given facts, never claim
 - **Validator** (`validate_plan`) returns `{valid, errors[{code, rule, message, order_ids, vehicle_id, trip_id, severity, repair_hint}], warnings, checked_rules, violated_rule_count}`.
   - The 8 booklet rules keep their `rules.py` names for the UI and map to `WEIGHT_CAPACITY_EXCEEDED`, `VOLUME_CAPACITY_EXCEEDED`, `FRESH_TIME_BUDGET_EXCEEDED` / `STYLE_TECH_TIME_BUDGET_EXCEEDED`, `TOO_MANY_TRIPS`, `FUEL_QUOTA_EXCEEDED`, `VAN_ONLY_OUTLET_ON_TRUCK`, `MALL_ACCESS_CONFLICT` and `DELIVERY_WINDOW_CONFLICT`.
   - Checked independently: `BRAND_DISTRICT_MISMATCH`, `CHILLED_ORDER_ON_AMBIENT_VEHICLE`, `DEPOT_MISMATCH`, `ORDER_SPLIT`, `DUPLICATE_ORDER_ASSIGNMENT` and `UNASSIGNED_ORDER_WITHOUT_DECISION`.
+- **Allocation (`draft_plan` node)**: the greedy packer (`planner.draft_plan`) drafts first. On the first draft of a run, the exact allocation (`domain/optimiser.py`) then solves the Datathon's mixed-integer program (HiGHS, via `scipy.optimize.milp`), within `AGENT_ALLOCATION_TIME_LIMIT_S` (default 30 s). Its constraints:
+  - one brand and one district per trip;
+  - chilled orders on reefers, van_only outlets on vans, whole orders;
+  - weight and volume per trip, and at most 2 trips per vehicle;
+  - the booklet's two budgets per vehicle (Fresh trips 270 min, Style and Tech trips 480 min);
+  - the weekly fuel quota;
+  - a safe upper bound on every stop's arrival against its district group's earliest window close;
+  - the repair loop's `avoid` pairs.
+
+  The objective maximises served priority (deferral score, plus large bonuses for protected and prioritised orders). It charges a small cost per trip and per reefer or van used without need, so it never trades an order away for fewer trips. `planner.draft_best` keeps the exact plan only when `check_rules` passes it and it serves at least as much priority as the greedy draft (or the same with fewer trips). Otherwise (no solver, no answer in time, or a broken rule) the greedy draft stands. `plan.allocation` records which plan was kept and why. `AGENT_ALLOCATOR=greedy` turns the solver off.
+
+  Measured on a synthetic 85-order, 38-vehicle depot day: at 30 s the exact plan served the same 80 orders as greedy with 35 trips instead of 44. At 20 s it had not caught up, and greedy was kept. In a capacity-bound case it serves orders greedy defers (`tests/test_optimiser.py`).
 - **Repair**: violations become drafter constraints (`avoid` / `prioritise`) and loop back to `draft_plan`, at most `AGENT_MAX_REPAIR_ATTEMPTS` (default 2) times. Anything left is taken off the plan by `rank_deferrals`; protected orders go to needs-review.
 - **Deferrals**: each carries a reason code, explanation, limiting constraint, consequence and `previouslyDeferred`. Previously deferred orders are protected by the existing scoring (+40, never deferred two days running).
 - **Simulation**: served / deferred / needs-review counts, per-trip weight, volume and reefer %, minutes, departs / returns, litres, per-vehicle minutes vs budget and weekly fuel %, and late risk (max, average, stops ≥ 50%). Warnings: `HIGH_LATE_RISK`, `NEAR_CAPACITY`, `NEAR_TIME_BUDGET`, `FUEL_QUOTA_LOW`, `REEFER_SHORTFALL`, `PROTECTED_NEEDS_REVIEW`.

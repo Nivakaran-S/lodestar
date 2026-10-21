@@ -66,11 +66,14 @@ class AgentRuntime:
         max_redrafts: int = 3,
         first_departure: str = "03:30",
         router: LLMRouter | None = None,
+        allocator: str = "exact",
+        allocation_time_limit: float = 30.0,
     ):
         self.model = model
         self.checkpointing = checkpointing
         self.first_departure = first_departure
-        self.graph = build_graph(model, odata_factory, checkpointing.saver, max_redrafts=max_redrafts, first_departure=first_departure, router=router or getattr(model, "router", None))
+        self.graph = build_graph(model, odata_factory, checkpointing.saver, max_redrafts=max_redrafts, first_departure=first_departure, router=router or getattr(model, "router", None),
+                                 allocator=allocator, allocation_time_limit=allocation_time_limit)
 
     @staticmethod
     def _config(run_id: str) -> dict[str, Any]:

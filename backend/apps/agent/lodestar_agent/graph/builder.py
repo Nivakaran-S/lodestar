@@ -75,6 +75,8 @@ def build_graph(
     max_redrafts: int = 3,
     first_departure: str = "03:30",
     router: LLMRouter | None = None,
+    allocator: str = "exact",
+    allocation_time_limit: float = 30.0,
 ):
     router = router or LLMRouter([])  # no provider: deterministic templates
 
@@ -181,8 +183,13 @@ def build_graph(
     def draft_plan(state: AgentState) -> dict[str, Any]:
         ctx = ctx_of(state)
         version = int((state.get("plan") or {}).get("version", 0)) + 1
-        plan = planner.draft_plan(ctx, state.get("constraints") or [], version)
-        note = f"v{version}: {len(plan['trips'])} trips, {len(plan['unassigned'])} unplaced"
+        # the exact solver runs on the first draft only: when it wins its plan is rule-clean (no repair needed), and a
+        # repair redraft uses the fast greedy draft, so a run waits for at most one solve
+        method = allocator if not int(state.get("redrafts") or 0) else "greedy"
+        plan = planner.draft_best(ctx, state.get("constraints") or [], version, method, allocation_time_limit)
+        alloc = plan.get("allocation") or {}
+        how = "exact allocation" if alloc.get("method") == "exact" else "greedy draft"
+        note = f"v{version}: {len(plan['trips'])} trips, {len(plan['unassigned'])} unplaced ({how})"
         return {"plan": plan, "redraftRequested": False, "history": [{"node": "draft_plan", "at": _now(), "note": note}]}
 
     def check_rules(state: AgentState) -> dict[str, Any]:

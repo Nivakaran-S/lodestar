@@ -33,7 +33,10 @@ def test_happy_path_stops_at_needs_approval(make_runtime):
     van_only = next(t for t in trips.values() if "O-3" in t["orderIds"])
     assert van_only["vehicleId"] == "V-N1"  # van_only on the van
     assert all(t["vehicleId"] != "V-R2" for t in trips.values())  # workshop vehicle unused
-    assert next(t for t in trips.values() if "O-4" in t["orderIds"])["vehicleId"] == "V-D1"  # dry Fresh off reefers
+    # dry Fresh never takes a reefer for itself: on a reefer only riding along with chilled Fresh of the same district
+    # (the exact allocation saves a trip that way; the greedy draft uses the dry truck)
+    o4 = next(t for t in trips.values() if "O-4" in t["orderIds"])
+    assert o4["vehicleId"] == "V-D1" or any(o["tempClass"] == "CHILLED" for o in fx.raw()["orders"] if o["id"] in o4["orderIds"])
     assert "What it did" in run["explanation"]["text"] and "What it checked" in run["explanation"]["text"]
     assert "V-R2" in run["contextSummary"]["vehiclesDown"]
 
@@ -73,7 +76,7 @@ def test_rule_violation_still_loops_back_to_draft_as_a_safety_net(make_runtime, 
         return checks, violations
 
     monkeypatch.setattr(rules, "check_rules", once)
-    run = make_runtime().start_run(fx.DEPOT, fx.RUN_DATE, "user-1")
+    run = make_runtime(allocator="greedy").start_run(fx.DEPOT, fx.RUN_DATE, "user-1")
     assert run["redrafts"] == 1
     assert nodes(run).count("draft_plan") == 2 and nodes(run).count("check_rules") == 2
     assert [h for h in run["history"] if h["node"] == "check_rules"][0]["note"] == "violations: mall"
@@ -152,7 +155,7 @@ def test_edit_applies_rechecks_and_waits_again(make_runtime):
 
 
 def test_edit_that_breaks_a_rule_is_flagged_not_redrafted(make_runtime):
-    rt = make_runtime()
+    rt = make_runtime(allocator="greedy")  # the edit targets a trip of the greedy layout
     run = rt.start_run(fx.DEPOT, fx.RUN_DATE, "user-1")
     edited = rt.resume(run["id"], "edit", [{"op": "move", "orderId": "O-3", "vehicleId": "V-R1", "tripNo": 1}], "user-1", ROLES)
     assert edited["status"] == "NEEDS_APPROVAL"

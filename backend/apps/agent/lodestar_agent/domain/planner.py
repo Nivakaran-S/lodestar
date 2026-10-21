@@ -302,3 +302,38 @@ def remove_orders(ctx: PlanningContext, plan: Plan, order_ids: set[str]) -> Plan
             trips.append({"vehicleId": t["vehicleId"], "tripNo": t["tripNo"], "orderIds": keep})
     plan = {**plan, "trips": trips}
     return schedule(ctx, plan)
+
+
+# ---------------------------------------------------------------- greedy draft vs the exact allocation
+def draft_best(ctx: PlanningContext, constraints: list[dict[str, Any]] | None = None, version: int = 1,
+               method: str = "exact", time_limit: float = 30.0) -> Plan:
+    """The greedy draft, replaced by the exact allocation (optimiser.optimise) when that one passes every booklet rule
+    and serves at least as much priority. ``plan["allocation"]`` says which was kept and why."""
+    from .optimiser import optimise, priority  # scipy is imported lazily, only when the exact method runs
+    from .rules import check_rules
+
+    constraints = constraints or []
+    greedy = draft_plan(ctx, constraints, version)
+    greedy["allocation"] = {"method": "greedy"}
+    if method != "exact":
+        return greedy
+    avoid, prioritise = _index_constraints(constraints)
+    exact = optimise(ctx, avoid, prioritise, time_limit)
+    if not exact:
+        greedy["allocation"]["note"] = "exact allocation unavailable (no answer in time, or no solver)"
+        return greedy
+    value = lambda ids: sum(priority(ctx, o, prioritise) for o in ids)  # noqa: E731
+    served_greedy = planned_order_ids(greedy)
+    gain = round(value(exact["served"]) - value(served_greedy), 1)
+    unassigned = [{"orderId": o, "reason": _unplaced_reason(ctx, o, avoid)} for o in sorted(set(ctx.orders) - set(exact["served"]))]
+    plan = schedule(ctx, {"version": version, "trips": exact["trips"], "unassigned": unassigned})
+    _, violations = check_rules(ctx, plan)
+    summary = {"servedGreedy": len(served_greedy), "servedExact": len(exact["served"]), "priorityGain": gain, **exact["info"]}
+    if violations:
+        greedy["allocation"].update(note=f"exact allocation broke {len(violations)} rule check(s) (window or mall times); greedy kept", **summary)
+        return greedy
+    if gain < 0 or (gain == 0 and len(plan["trips"]) >= len(greedy["trips"])):
+        greedy["allocation"].update(note="greedy draft already as good", **summary)
+        return greedy
+    plan["allocation"] = {"method": "exact", **summary}
+    return plan

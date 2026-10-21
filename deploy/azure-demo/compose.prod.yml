@@ -65,7 +65,7 @@ services:
   notifications: *node-small
   audit: *node-small
   agent:
-    mem_limit: 320m
+    mem_limit: 448m  # numpy + scipy for the exact allocation (HiGHS)
     environment:
       # keys come from the VM's .env only (never committed); with none set the agent answers from its templates
       AGENT_MODEL: ${AGENT_MODEL:-gemini}

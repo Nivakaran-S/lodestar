@@ -80,6 +80,9 @@ class Settings(BaseSettings):
     odata_max_pages: int = Field(default=50, alias="ODATA_MAX_PAGES")
 
     # Planning
+    # allocation: "exact" (the Datathon MILP, kept when rule-clean and at least as good as greedy) or "greedy"
+    allocator: str = Field(default="exact", alias="AGENT_ALLOCATOR")
+    allocation_time_limit_s: float = Field(default=30.0, ge=1.0, le=100.0, alias="AGENT_ALLOCATION_TIME_LIMIT_S")
     # bounded repair loop (validate -> redraft); AGENT_MAX_REDRAFTS is the older name
     max_redrafts: int = Field(default=2, ge=0, le=5, validation_alias=AliasChoices("AGENT_MAX_REPAIR_ATTEMPTS", "AGENT_MAX_REDRAFTS"))
     first_departure: str = Field(default="03:30", alias="AGENT_FIRST_DEPARTURE")
