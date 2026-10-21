@@ -289,7 +289,8 @@ const s = StyleSheet.create({
 });
 
 const x = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'flex-end' },
-  input: { minWidth: 64, padding: 0, margin: 0, borderBottomWidth: 2, borderBottomColor: '#cfd5e1' },
+  row: { flexDirection: 'row', alignItems: 'flex-end', flexShrink: 1, minWidth: 0 },
+  // a browser input is ~200px wide by default: on a phone that pushed "°C" over the "Needs" column
+  input: { width: 132, minWidth: 64, flexShrink: 1, padding: 0, margin: 0, borderBottomWidth: 2, borderBottomColor: '#cfd5e1' },
   cam: { height: 160, borderRadius: 16, backgroundColor: '#0a0f1a' },
 });

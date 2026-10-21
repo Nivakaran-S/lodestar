@@ -43,7 +43,12 @@ export default function ScreenLd14RePlanReceived() {
             <Icon xml={X0} width={20} height={20} style={s.v1} />
           </Tap>
           <View style={s.v5}>
-            <Text style={s.t4}><Text style={s.t3}>{down?.id ?? '—'}</Text>{down ? ` · ${depotName(down.depot)}` : ''}</Text>
+            {down ? (
+              <Text style={s.t4}><Text style={s.t3}>{down.id}</Text>{` · ${depotName(down.depot)}`}</Text>
+            ) : (
+              // no vehicle in the workshop: a re-plan for another reason, headed by the depot, not a bare dash
+              <Text style={s.t4}><Text style={s.t3}>{depot ? depotName(depot) : 'Re-plan'}</Text></Text>
+            )}
           </View>
           {down ? (
             <View style={s.v8}>
