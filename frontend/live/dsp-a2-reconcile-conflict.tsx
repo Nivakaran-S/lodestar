@@ -285,7 +285,7 @@ export default function LiveDspA2ReconcileConflict() {
                     <div className="spacer" />
                     <ErrorBanner compact error={resolve.error} />
                     {pod && (
-                      <div className="hstack" style={{ gap: '10px', padding: '12px 20px 18px 60px' }} data-p="4">
+                      <div className="hstack g-resolve" style={{ gap: '10px', padding: '12px 20px 18px 60px', flexWrap: 'wrap', rowGap: '8px' }} data-p="4">
                         <Btn
                           className="d-btn d-btn--primary"
                           style={{ height: '44px', padding: '0 22px', background: 'linear-gradient(135deg,#10B981 0%,#047857 100%)', boxShadow: '0 6px 16px rgba(4,120,87,.28)' }}
