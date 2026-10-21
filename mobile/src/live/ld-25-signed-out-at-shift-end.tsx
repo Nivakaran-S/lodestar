@@ -6,7 +6,8 @@ import { useAccessProblem, useDeviceId, useSignIn } from '@/lodestar/live';
 import { useTickCount } from '@/model/dock';
 import { useOutbox } from '@/model/hooks';
 import type { Shortfall } from '@/model/types';
-import { Frame, Grad, Icon, Scroll, Tap, type ScreenNav, type GradSpec } from '@/lodestar/runtime';
+import { Grad, Icon, Scroll, Tap, type ScreenNav, type GradSpec } from '@/lodestar/runtime';
+import { DeskButton, DeskFrame, DeskHead, DeskInset, DeskSmall } from '@/lodestar/desk-auth';
 
 const nav: ScreenNav = {"links":{"L214":{"to":"ld-06-sign-in","kind":"go"}}};
 
@@ -28,8 +29,26 @@ export default function ScreenLd25SignedOutAtShiftEnd() {
   const unsent = waiting.length;
   const state = (status?: string) => (status === 'synced' ? 'sent' : status === 'conflict' ? 'needs a look' : 'on this phone');
 
+  // Desktop/tablet browser (a dock tablet or a desk): the desk card with the shift's tally.
+  const desk = (
+    <>
+      <DeskHead app="dock" title="Signed out at shift end" sub={problem ? `${problem.message}${hm(problem.at) ? ` · ${hm(problem.at)}` : ''}` : `Signed out${device ? ` · ${device.slice(0, 8)}` : ''}`} />
+      <DeskInset title={unsent ? `${unsent} still on this device` : 'Nothing lost'} right={unsent ? 'Waiting' : 'Saved'} tone={unsent ? 'warn' : 'ok'} testID="desk-unsent">
+        {unsent ? 'They send after the next sign-in here. Keep this browser open until they go.' : 'Everything from your shift is saved at the hub. Safe to hand the tablet on.'}
+      </DeskInset>
+      <DeskInset title={`${releases.length} released · ${flags.length} ${flags.length === 1 ? 'flag' : 'flags'} raised · ${unsent} left unsent`} testID="desk-tally">
+        {`Last release ${lastRelease ? `${lastRelease.label.replace(/^Release · /, '')} · ${state(lastRelease.status)}` : '—'}`}
+        {lastFlag ? `
+Flag ${lastFlag.item} short ${Math.max(0, lastFlag.qtyOrdered - lastFlag.qtyLoaded)} · ${state(lastFlagWrite?.status)}` : ''}
+        {releases.length ? `
+Lines loaded ${linesLoaded}` : ''}
+      </DeskInset>
+      <DeskButton lk="L214" label={busy ? 'Signing in…' : 'Sign in for a new shift'} onPress={signIn} disabled={!ready || busy} testID="desk-sign-in" />
+      <DeskSmall>{'Loaders and dock leads only. Use your staff ID and Dock PIN.'}</DeskSmall>
+    </>
+  );
   return (
-    <Frame bg="#f2f4f8" nav={nav} style={s.v0}>
+    <DeskFrame app="dock" bg="#f2f4f8" nav={nav} style={s.v0} desk={desk}>
       <View style={s.v31}>
         <View style={s.v7}>
           <View style={s.v2}>
@@ -122,7 +141,7 @@ export default function ScreenLd25SignedOutAtShiftEnd() {
           </Tap>
         </View>
       </View>
-    </Frame>
+    </DeskFrame>
   );
 }
 

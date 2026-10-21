@@ -4,7 +4,8 @@ import { Text, View, StyleSheet } from 'react-native';
 import { dayLabel, hm } from '@/lib/time';
 import { plural, useAccessProblem, useDeviceId, useSignIn } from '@/lodestar/live';
 import { cutoffFor, left, nextRunDate, totals, useDraft, useNow } from '@/model/store-face';
-import { Frame, Grad, Icon, Scroll, Tap, type ScreenNav, type GradSpec } from '@/lodestar/runtime';
+import { Grad, Icon, Scroll, Tap, type ScreenNav, type GradSpec } from '@/lodestar/runtime';
+import { DeskButton, DeskFrame, DeskHead, DeskInset, DeskSmall } from '@/lodestar/desk-auth';
 
 const nav: ScreenNav = {"links":{"L113":{"to":"sm-05-sign-in","kind":"go"}}};
 
@@ -16,8 +17,23 @@ export default function ScreenSm33SessionExpired() {
   const now = useNow();
   const runDate = draft?.runDate ?? nextRunDate(now);
   const remaining = left(cutoffFor(runDate), now);
+  // Desktop/tablet browser: the desk card (desk-auth.tsx) with the same facts as the phone screen.
+  const desk = (
+    <>
+      <DeskHead app="store" title="You've been signed out" sub={problem?.message ?? 'For security, Lodestar signs you out after a long time without use, or after a change to your account.'} />
+      <DeskInset
+        title={draft ? `${dayLabel(draft.runDate)} order · draft` : 'No order draft in this browser'} right={draft ? 'Kept' : undefined} tone={draft ? 'ok' : 'plain'}
+        testID="desk-draft"
+      >
+        {draft ? `${plural(totals(draft.lines).units, 'unit')} · saved ${hm(draft.savedAt)}` : undefined}
+      </DeskInset>
+      <DeskInset title={`Orders for ${dayLabel(runDate)} close at 4:00 PM`} right={remaining || 'Closed'} tone={remaining ? 'warn' : 'plain'} />
+      <DeskButton lk="L113" label={busy ? 'Signing in…' : 'Sign in again'} onPress={signIn} disabled={!ready || busy} testID="desk-sign-in" />
+      <DeskSmall>{draft ? 'Sign in again to send the draft. It takes about a minute.' : 'Sign in again to continue. It takes about a minute.'}</DeskSmall>
+    </>
+  );
   return (
-    <Frame bg="#f4f5f9" nav={nav} style={s.v0}>
+    <DeskFrame app="store" bg="#f4f5f9" nav={nav} style={s.v0} desk={desk}>
       <View style={s.v35}>
         <View style={s.v7}>
           <View style={s.v2}>
@@ -90,7 +106,7 @@ export default function ScreenSm33SessionExpired() {
           </Tap>
         </View>
       </View>
-    </Frame>
+    </DeskFrame>
   );
 }
 

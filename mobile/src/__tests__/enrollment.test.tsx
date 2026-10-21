@@ -391,6 +391,27 @@ describe('SM-32 access request (live)', () => {
     expect(replace).not.toHaveBeenCalledWith({ pathname: '/s/[key]', params: { key: 'sm-33-session-expired' } });
   });
 
+  it('a leftover session that expires on a sign-in screen stays there (a loader on a tablet a manager used)', async () => {
+    const { AccessGuard } = require('@/auth/access-guard');
+    const { OidcError } = require('@/auth/oidc');
+    const path = (require('expo-router') as { __path: { value: string } }).__path;
+    await signInAs(manager());
+    path.value = '/s/ld-06-sign-in';
+    await render(<AccessGuard />);
+    replace.mockClear();
+    oidc.refresh.mockRejectedValue(new OidcError('invalid_grant', 'Session not active'));
+    await act(async () => void (await session.refresh()));
+    expect(session.state.get()).toMatchObject({ status: 'signed-out', problem: { kind: 'expired' } });
+    expect(replace).not.toHaveBeenCalledWith({ pathname: '/s/[key]', params: { key: 'sm-33-session-expired' } });
+
+    // anywhere else, the store manager is told the session ended (and that the draft is kept)
+    await signInAs(manager());
+    path.value = '/s/sm-11-today-order-day';
+    await act(async () => void (await session.refresh()));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith({ pathname: '/s/[key]', params: { key: 'sm-33-session-expired' } }));
+    path.value = '/';
+  });
+
   it('a bound phone goes straight home', async () => {
     const { enterApp } = require('@/auth/use-sign-in');
     await signInAs(manager(INSTALL));

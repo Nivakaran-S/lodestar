@@ -226,6 +226,23 @@ export function DeskLink({ lk, label, onPress, to, testID }: { lk?: string; labe
   );
 }
 
+/** A tinted box on the card: what is kept, what waits, a deadline (`dx-inset`). `right` is a short status. */
+export function DeskInset({ title, right, tone = 'plain', children, testID }: {
+  title: string; right?: string; tone?: 'plain' | 'ok' | 'warn'; children?: ReactNode; testID?: string;
+}) {
+  const bg = tone === 'ok' ? '#ECFDF3' : tone === 'warn' ? '#FFF7E6' : C.bg;
+  const fg = tone === 'ok' ? '#047857' : tone === 'warn' ? '#B45309' : C.text3;
+  return (
+    <View style={[s.inset, { backgroundColor: bg }]} testID={testID}>
+      <View style={s.insetHead}>
+        <Text style={s.insetT}>{title}</Text>
+        {right ? <Text style={[s.insetR, { color: fg }]}>{right}</Text> : null}
+      </View>
+      {children ? <Text style={s.t14}>{children}</Text> : null}
+    </View>
+  );
+}
+
 /** "or" between the main action and the other ways in (`dx-or`). */
 export function DeskOr() {
   return (
@@ -257,6 +274,10 @@ const s = StyleSheet.create({
   h1: { color: C.text, fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 34, lineHeight: 37.4, letterSpacing: -1.02 },
   t14: { color: C.text2, fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 21 },
   t13: { color: C.text3, fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 18.85 },
+  inset: { gap: 4, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14 },
+  insetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
+  insetT: { color: C.text, fontFamily: 'Inter_700Bold', fontSize: 15, lineHeight: 21, flexShrink: 1 },
+  insetR: { fontFamily: 'Inter_700Bold', fontSize: 13, lineHeight: 18 },
   labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   label: { color: C.text2, fontFamily: 'Inter_700Bold', fontSize: 13, lineHeight: 18 },
   input: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 48, paddingHorizontal: 16, borderRadius: 14, backgroundColor: '#FFFFFF', boxShadow: `inset 0 0 0 1px ${C.line}`, overflow: 'hidden' },

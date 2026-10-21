@@ -6,7 +6,8 @@ import { dayLabel, hm } from '@/lib/time';
 import { plural, useAccessProblem, useDeviceId, useSignIn } from '@/lodestar/live';
 import { today, useOutbox } from '@/model/hooks';
 import { itemDetail, labelParts, useNet } from '@/model/run';
-import { Frame, Grad, Icon, Scroll, Tap, type ScreenNav, type GradSpec } from '@/lodestar/runtime';
+import { Grad, Icon, Scroll, Tap, type ScreenNav, type GradSpec } from '@/lodestar/runtime';
+import { DeskFrame } from '@/lodestar/desk-auth';
 import { themed } from '@/lodestar/day-theme';
 
 const nav: ScreenNav = {"links":{"L275":{"to":"dr-01-today-s-run","kind":"go"},"L276":{"to":"dr-06-sign-in","kind":"go"}}};
@@ -19,7 +20,7 @@ export default function ScreenDr30SessionExpiredWhileOffline() {
   const { waiting } = useOutbox();
   const ended = problem ? `${problem.kind === 'expired' ? 'Session ended' : 'Signed out'} ${hm(problem.at)}` : 'Signed out';
   return (
-    <Frame bg="#070b16" nav={nav} style={s.v0}>
+    <DeskFrame app="run" bg="#070b16" nav={nav} style={s.v0}>
       <View style={s.v35}>
         <View style={s.v7}>
           <View style={s.v2}>
@@ -102,7 +103,7 @@ export default function ScreenDr30SessionExpiredWhileOffline() {
           </Tap>
         </View>
       </View>
-    </Frame>
+    </DeskFrame>
   );
 }
 

@@ -48,9 +48,12 @@ jest.mock('@/lib/kv', () => {
 jest.mock('@/offline/storage', () => ({ queueStorage: require('@/offline/queue').memoryQueueStorage() }));
 jest.mock('expo-router', () => {
   const params: Record<string, string> = {};
+  const path = { value: '/' };
   return {
     __params: params,
+    __path: path,
     useLocalSearchParams: () => params,
+    usePathname: () => path.value,
     router: { push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => false) },
     Link: () => null,
   };
