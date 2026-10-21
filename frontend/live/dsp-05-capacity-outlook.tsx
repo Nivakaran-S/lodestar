@@ -110,7 +110,8 @@ function Chart({ weeks, peakWeek, peakBad, strip }: { weeks: OutlookWeek[]; peak
   const ticks = Math.max(1, Math.ceil(Math.max(...weeks.map(w => w.estimatedTotalM3), 0) / step));
   const scale = 102 / (ticks * step);
   const y = (v: number) => 140 - v * scale;
-  const cx = (i: number) => 86.3 + i * 72.6;
+  // the weeks share the plot width (726 from x 50): ten weeks sit at the design's 86.3 + i × 72.6, fewer spread out
+  const cx = (i: number) => 50 + (726 / Math.max(weeks.length, 1)) * (i + 0.5);
   const maxAbs = Math.max(1, ...(strip?.rows ?? []).map(r => Math.abs(r.headroom ?? 0)));
   const hs = 15.5 / maxAbs;
   const peakAt = weeks.findIndex(w => w.week === peakWeek);

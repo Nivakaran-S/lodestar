@@ -99,4 +99,20 @@ describe('demand WAPE (measureModels)', () => {
     expect(findMany.mock.calls[0][0].where).toMatchObject({ depot: { in: ['KANDY'] } });
     expect(aggregate.mock.calls[0][0].where.runDate).toEqual({ gte: day('2026-09-14'), lt: day('2026-09-21') });
   });
+
+  it('does not score a week whose orders miss some of its operating days', async () => {
+    const findMany = jest.fn().mockResolvedValue([{ depot: 'KANDY', weekStart: day('2026-09-14'), source: 'model', totalM3: 900 }]);
+    const aggregate = jest.fn().mockResolvedValue({ _sum: { m3: 100 } });
+    const prisma = {
+      demandForecast: { findMany },
+      calendar: { count: jest.fn().mockResolvedValue(6) },
+      order: { aggregate, groupBy: jest.fn().mockResolvedValue([{ runDate: day('2026-09-15') }]) },
+    };
+    const out = await measureDemand(prisma as any, ['KANDY'], AT);
+    expect(out.measured).toMatchObject({ value: null, n: 0, reason: expect.stringMatching(/1 depot-week only partly recorded/) });
+    expect(aggregate).not.toHaveBeenCalled();
+    // with every operating day recorded it is scored
+    prisma.order.groupBy.mockResolvedValue(Array.from({ length: 6 }, (_, i) => ({ runDate: day(`2026-09-1${4 + i}`) })));
+    expect((await measureDemand(prisma as any, ['KANDY'], AT)).measured).toEqual({ value: 800, n: 1 });
+  });
 });

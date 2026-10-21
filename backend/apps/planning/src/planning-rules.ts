@@ -154,18 +154,25 @@ export async function measureDemand(prisma: PrismaService, depots: string[] | nu
   });
   const source = stored.some((f) => f.source === 'model') ? 'model' : stored.length ? 'history-median' : null;
   const rows: WeekOutcome[] = [];
+  let partial = 0;
   for (const f of stored.filter((x) => x.source === source)) {
-    const agg = await prisma.order.aggregate({
-      where: {
-        runDate: { gte: f.weekStart, lt: new Date(f.weekStart.getTime() + WEEK_MS) },
-        outlet: { depot: f.depot },
-        status: { not: 'CANCELLED' as any },
-      },
-      _sum: { m3: true },
-    });
+    const runDate = { gte: f.weekStart, lt: new Date(f.weekStart.getTime() + WEEK_MS) };
+    const where = { runDate, outlet: { depot: f.depot }, status: { not: 'CANCELLED' as any } };
+    // A whole-week forecast is only scored against a whole week of orders: a week whose order history misses some
+    // of its operating days (a demo database with a few seeded run dates) would read as a huge error that is not one.
+    const [operating, recorded] = await Promise.all([
+      prisma.calendar?.count ? prisma.calendar.count({ where: { date: runDate, isOperating: true } }) : Promise.resolve(0),
+      prisma.order.groupBy ? prisma.order.groupBy({ by: ['runDate'], where }).then((g) => g.length) : Promise.resolve(0),
+    ]);
+    if (operating > 0 && recorded < operating) { partial++; continue; }
+    const agg = await prisma.order.aggregate({ where, _sum: { m3: true } });
     rows.push({ depot: f.depot, weekStart: f.weekStart, forecastM3: f.totalM3, actualM3: agg._sum.m3 ?? 0 });
   }
-  return { source, measured: demandWape(rows) };
+  const measured = demandWape(rows);
+  if (!rows.length && partial) {
+    measured.reason = `No finished week has orders on every operating day yet (${partial} depot-week${partial === 1 ? '' : 's'} only partly recorded)`;
+  }
+  return { source, measured };
 }
 
 /**

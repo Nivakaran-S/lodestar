@@ -180,7 +180,7 @@ export default function LiveDsp04LiveOperations() {
                   <span className="x-att__lead" style={{ background: ATT[x.tone].bg, color: ATT[x.tone].fg }}><Ic n={ATT[x.tone].icon} /></span>
                   <div className="x-att__main">
                     <span className="x-att__t">{x.title}</span>
-                    <span className="x-att__m">{x.meta}</span>
+                    <span className="x-att__m" style={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }}>{x.meta}</span>
                   </div>
                 </div>
                 <div className="x-att__b">
