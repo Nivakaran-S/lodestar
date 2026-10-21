@@ -317,6 +317,21 @@ describe('ADM-18 Notifications and integrations', () => {
     await waitFor(() => expect(view.calls.filter(c => c.path === 'Notifications' && c.method === 'GET').length).toBeGreaterThan(1));
   });
 
+  it('reads today in pages of 500 (the server refuses a larger $top) and counts every page', async () => {
+    const base = 'http://localhost/odata/v4/Notifications';
+    const view = renderLive(<Notifications />, {
+      ...admin,
+      handler: req => (req.path === 'Notifications'
+        ? (req.query.$skiptoken ? page([sent[2]]) : page(sent.slice(0, 2), 3, `${base}?$skiptoken=2`))
+        : req.path === 'Users' ? page(users) : page([], 1)),
+    });
+    const who = screen.getByTestId('who-gets-what');
+    await waitFor(() => expect(who.querySelector('[data-type="SHORTFALL_FLAGGED"]')).toHaveTextContent('Dispatcher: shortfall flagged1 · app'));
+    const reads = view.calls.filter(c => c.path === 'Notifications' && c.method === 'GET');
+    expect(reads[0].query.$top).toBe('500');
+    expect(reads.some(c => c.query.$skiptoken === '2')).toBe(true);
+  });
+
   it('a new notification refreshes the count', async () => {
     let n = 3;
     const view = renderLive(<Notifications />, { ...admin, handler: req => (req.path === 'Notifications' ? page([], n) : page([], 1)) });

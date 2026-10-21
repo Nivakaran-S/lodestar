@@ -252,6 +252,9 @@
 }
 /* list rows (ADM-05 requests, DSP lists): the meta line wraps inside its fixed-width card */
 :is(.b-P2, .b-P6) .dx-lrow__m { flex-wrap: wrap; white-space: normal; overflow-wrap: anywhere; row-gap: 0; }
+/* ADM-13 calendar: a narrow day cell puts "Today" under the date instead of clipping it */
+.b-P6 .adm-day__n { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 4px; white-space: normal; }
+.b-P6 .adm-today { margin-left: 0; white-space: nowrap; }
 /* ADM-13 calendar: a day's note wraps inside its cell; on a phone the month scrolls inside its card */
 .b-P6 .adm-day__t { white-space: normal; overflow-wrap: anywhere; }
 @media (max-width: 599px) {

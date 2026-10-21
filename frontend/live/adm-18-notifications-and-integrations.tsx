@@ -30,7 +30,11 @@ export default function LiveAdm18NotificationsAndIntegrations() {
   const { session } = useAuth();
   const since = `${daysAgo(0)}T00:00:00Z`;
   const today = useQuery<Today>('adm18-today', async c => {
-    const page = await c.list<Notification>('Notifications', { filter: `sentAt ge ${since}`, select: 'id,type,recipientId', orderby: 'sentAt desc', top: 1000, count: true });
+    // the server pages at 500 rows ($top above it is refused): take today's in pages, with the total from $count
+    const first = await c.list<Notification>('Notifications', { filter: `sentAt ge ${since}`, select: 'id,type,recipientId', orderby: 'sentAt desc', top: 500, count: true });
+    const rows = [...first.value];
+    for (let p = first, i = 1; p.nextLink && i < 20; i++) { p = await c.next<Notification>(p.nextLink); rows.push(...p.value); }
+    const page = { value: rows, count: first.count };
     const ids = [...new Set(page.value.map(n => n.recipientId))];
     const users = ids.length ? await c.all<User>('Users', { filter: `id in (${ids.map(i => `'${i}'`).join(',')})`, select: 'id,role' }) : [];
     const role = new Map(users.map(u => [u.id, u.role]));

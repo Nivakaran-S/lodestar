@@ -67,9 +67,10 @@ export default function LiveAdm12OperatingRules() {
             <span className="spacer" />
             <span className="d-btn" style={{ height: '34px' }}><Ic n="eye" />{"Plan settings"}</span>
           </div>
-          <div className="dx-hrow" style={{ flex: '1', minHeight: '0' }}>
+          {/* the cards keep their full height and the pane scrolls: on a short window they used to become tiny scrollers */}
+          <div className="dx-hrow" style={{ flexShrink: 0, alignItems: 'flex-start' }}>
             <div className="dx-col" style={{ flex: '1' }}>
-              <div className="dx-card">
+              <div className="dx-card" style={{ flexShrink: 0 }}>
                 <div className="dx-card__head"><span className="dx-card__title">{"Day and trips"}</span></div>
                 <div className="dx-card__body" style={{ gap: '0' }}>
                   <Rule label="Order cutoff">{`${CUTOFF_LABEL} the day before`}</Rule>
@@ -80,7 +81,7 @@ export default function LiveAdm12OperatingRules() {
                   <Rule label="Outlet deferred on the previous run">{"Protected next run"}</Rule>
                 </div>
               </div>
-              <div className="dx-card">
+              <div className="dx-card" style={{ flexShrink: 0 }}>
                 <div className="dx-card__head"><span className="dx-card__title">{"Capacity"}</span></div>
                 <div className="dx-card__body" style={{ gap: '0' }}>
                   <Rule label="A load must fit">{"Weight "}<span style={{ color: 'var(--brand-600)' }}>{"and"}</span>{" volume"}</Rule>
