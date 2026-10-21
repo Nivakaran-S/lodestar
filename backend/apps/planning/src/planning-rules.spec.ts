@@ -24,23 +24,27 @@ describe('planning rules (Plans/Lodestar.PlanningRules)', () => {
 
   it('measures service-time MAE only from stops with a prediction and an outcome', () => {
     expect(serviceTimeMae([stop({ serviceMinPredicted: 10 })])).toMatchObject({ value: null, n: 0 });
-    const m = serviceTimeMae([
+    const two = [
       stop({ serviceMinPredicted: 10, arrivalActual: at('06:00'), leaveActual: at('06:13') }),
       stop({ serviceMinPredicted: 20, arrivalActual: at('07:00'), leaveActual: at('07:19') }),
-    ]);
-    expect(m).toEqual({ value: 2, n: 2 });
+    ];
+    // too few to judge: no figure, and says how many there are
+    expect(serviceTimeMae(two)).toMatchObject({ value: null, n: 2, reason: expect.stringMatching(/2 stops .* scored from 10/) });
+    expect(serviceTimeMae(Array.from({ length: 5 }, () => two).flat())).toEqual({ value: 2, n: 10 });
   });
 
   it('measures lateness AUC against arrival after the window close, or says why not', () => {
     expect(arrivedLate(stop({ arrivalActual: at('08:01') }))).toBe(true);
     expect(arrivedLate(stop({ arrivalActual: at('07:59') }))).toBe(false);
     expect(latenessAuc([stop({ lateRiskPct: 40, arrivalActual: at('07:00') })])).toMatchObject({ value: null, n: 1, reason: expect.stringMatching(/0 late, 1 on time/) });
-    const auc = latenessAuc([
+    const three = [
       stop({ lateRiskPct: 80, arrivalActual: at('08:30') }),
       stop({ lateRiskPct: 20, arrivalActual: at('07:00') }),
       stop({ lateRiskPct: 50, arrivalActual: at('07:10') }),
-    ]);
-    expect(auc).toEqual({ value: 1, n: 3 });
+    ];
+    // one late arrival is not enough to score a ranking
+    expect(latenessAuc(three)).toMatchObject({ value: null, n: 3, reason: expect.stringMatching(/1 late, 2 on time/) });
+    expect(latenessAuc([...three, ...three, ...three])).toEqual({ value: 1, n: 9 });
   });
 
   it('scopes the measured stops to the caller’s depots and never invents a demand score', async () => {

@@ -171,11 +171,11 @@ export default function LiveDsp04LiveOperations() {
             </div>
           </div>
           <ErrorBanner error={trips.error ?? exceptions.error ?? markRead.error} onRetry={() => { void trips.refresh(); void exceptions.refresh(); }} />
-          <div className="hstack" style={{ gap: '16px', alignItems: 'stretch' }}>
+          <div className="hstack" style={{ gap: '16px', alignItems: 'stretch', flexShrink: 0 }}>
             {!exceptions.data && !exceptions.error && <Skeleton rows={1} />}
             {exceptions.data?.length === 0 && <Empty title="Nothing needs you" text="No exceptions, late risks or signal losses right now." />}
             {top.map(x => (
-              <div key={x.id} className={`x-att ${ATT[x.tone].cls}`} style={{ flex: '1' }} data-exception={x.id}>
+              <div key={x.id} className={`x-att ${ATT[x.tone].cls}`} style={{ flex: '1 1 0', minWidth: 0 }} data-exception={x.id}>
                 <div className="x-att__top">
                   <span className="x-att__lead" style={{ background: ATT[x.tone].bg, color: ATT[x.tone].fg }}><Ic n={ATT[x.tone].icon} /></span>
                   <div className="x-att__main">
@@ -186,7 +186,8 @@ export default function LiveDsp04LiveOperations() {
                 <div className="x-att__b">
                   {x.tone === 'off' ? <>Shown as <b>predicted</b>, never as on time. PODs save on the phone and sync when the signal is back.</> : x.value ? <>Late risk <b>{x.value}</b> on this stop.</> : 'Open exception.'}
                 </div>
-                <div className="x-att__acts">
+                {/* three cards share the row: their buttons wrap rather than push the last card off screen */}
+                <div className="x-att__acts" style={{ flexWrap: 'wrap' }}>
                   {x.tripId && <Btn className="d-btn d-btn--ghost" onClick={() => setSel(x.tripId!)}><Ic n="eye" />{"Show the route"}</Btn>}
                   {x.notificationId && (
                     <Btn className="d-btn" busy={markRead.pending} onClick={() => void markRead.run(x.notificationId!)}><Ic n="check" />{"Mark handled"}</Btn>

@@ -38,11 +38,13 @@ export const EMPTY_QUEUE = '/plan/dsp-21-empty-queue-before-cutoff';
 
 /**
  * DSP-01 shows DSP-21 instead when, before the open run's cutoff, that run has no orders in view. `inView` is the
- * run date DSP-01 shows; `queued` its order count, `openCount` the open run's (when it is another date).
+ * run date DSP-01 shows; `queued` its order count, `unplanned` how many of them are still Received, `openCount` the
+ * open run's (when it is another date). An earlier run still holding unplanned orders is real work: its queue shows.
  */
-export function isEmptyBeforeCutoff(p: { before: boolean; openRun: string; inView: string | undefined; queued: number | undefined; openCount: number | undefined }): boolean {
+export function isEmptyBeforeCutoff(p: { before: boolean; openRun: string; inView: string | undefined; queued: number | undefined; unplanned?: number; openCount: number | undefined }): boolean {
   if (!p.before) return false;
   if (p.inView === p.openRun) return p.queued === 0;
+  if (p.inView && p.unplanned !== 0) return false; // still loading, or orders on this run wait to be planned
   if (!p.inView || p.inView < p.openRun) return p.openCount === 0;
   return false; // a later run date is pinned: show its queue
 }
@@ -98,7 +100,7 @@ export default function LiveDsp01CutoffQueue() {
   const open = useOpenRun();
   const otherRun = runDate !== open.runDate && (!runDate || runDate < open.runDate);
   const openCount = useCount('Orders', otherRun && !scope.loadingDate ? [dayFilter('runDate', open.runDate), depotFilter('outlet/depot', active), LIVE_STATUSES].filter(Boolean).join(' and ') : null, QUEUE_EVENTS);
-  const emptyBeforeCutoff = !open.loading && !scope.loadingDate && isEmptyBeforeCutoff({ before: open.before, openRun: open.runDate, inView: runDate, queued: all.data?.length, openCount });
+  const emptyBeforeCutoff = !open.loading && !scope.loadingDate && isEmptyBeforeCutoff({ before: open.before, openRun: open.runDate, inView: runDate, queued: all.data?.length, unplanned: all.data?.filter(o => o.status === 'RECEIVED').length, openCount });
   useEffect(() => {
     if (emptyBeforeCutoff && !new URLSearchParams(window.location.search).get('runDate')) router.replace(EMPTY_QUEUE);
   }, [emptyBeforeCutoff, router]);

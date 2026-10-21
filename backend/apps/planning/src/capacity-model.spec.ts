@@ -11,6 +11,8 @@ function prismaStub(historyDays = 5) {
     { runDate: day(d), tempClass: 'AMBIENT', _sum: { m3: 20 } },
   ]);
   const cal = ['2026-09-28', '2026-09-29', '2026-10-05', '2026-10-06'].map((d) => ({ date: day(d), isOperating: true, festivalRamp: 0, isPayday: false, festivalName: null, monsoon: 1 }));
+  // the calendar runs to the end of W41 (a closed Sunday), so both weeks are whole weeks of the outlook
+  cal.push({ date: day('2026-10-11'), isOperating: false, festivalRamp: 0, isPayday: false, festivalName: null, monsoon: 1 });
   return {
     order: { groupBy: jest.fn().mockResolvedValue(history) },
     vehicle: { findMany: jest.fn().mockResolvedValue([{ capacityM3: 26.4 }]) },

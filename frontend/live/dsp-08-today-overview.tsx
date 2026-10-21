@@ -218,14 +218,16 @@ export default function LiveDsp08TodayOverview({ offlineView = false }: { offlin
               ))}
             </div>
           </div>
+          {/* the column is as tall as the window: these keep their own height (the pane scrolls), else a short window
+              squeezes them by a few px and the card bodies turn into tiny scrollers */}
           {runDate && (
-            <div className="dx-hrow">
+            <div className="dx-hrow" style={{ flexShrink: 0 }}>
               {active.map(d => (
                 <DepotCard key={d} depot={d} runDate={runDate} />
               ))}
             </div>
           )}
-          <div className="dx-card">
+          <div className="dx-card" style={{ flexShrink: 0 }}>
             <div className="dx-card__head"><span className="dx-card__title">This morning</span><span className="dx-t13">your latest notices</span></div>
             <div className="dx-card__body" style={{ flexDirection: 'row', gap: '10px' }}>
               {timeline.error && <ErrorBanner compact error={timeline.error} onRetry={timeline.refresh} />}

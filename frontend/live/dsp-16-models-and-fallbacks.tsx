@@ -64,7 +64,7 @@ const places = (v: number) => Math.min(2, (String(v).split('.')[1] ?? '').length
 const metricText = (t: ModelTarget, v: number) => `${t.metric} ${fmtNum(v, places(v))}${t.unit ? ` ${t.unit}` : ''}`;
 
 /** "MAE 2.3 min a stop over 55 stops · target ≤ 4", or "Not measured yet" with the reason. */
-function Validation({ m }: { m?: { target: ModelTarget; measured: Measured } }) {
+function Validation({ m, of = 'stops' }: { m?: { target: ModelTarget; measured: Measured }; of?: 'stops' | 'depot-weeks' }) {
   if (!m) return <>{'…'}</>;
   const { target: t, measured } = m;
   const goal = `target ${CMP[t.comparator]} ${fmtNum(t.value, t.metric === 'AUC' ? 2 : places(t.value))}`;
@@ -74,7 +74,7 @@ function Validation({ m }: { m?: { target: ModelTarget; measured: Measured } }) 
   const met = t.comparator === '<=' ? measured.value <= t.value : measured.value >= t.value;
   return (
     <>
-      {`${metricText(t, measured.value)} over ${fmtNum(measured.n)} stops `}
+      {`${metricText(t, measured.value)} over ${fmtNum(measured.n)} ${measured.n === 1 ? of.replace(/s$/, '') : of} `}
       <span className={`m-tag ${met ? 'm-tag--ok' : 'm-tag--warn'}`} style={{ marginLeft: '6px' }}>{goal}</span>
     </>
   );
@@ -143,12 +143,12 @@ export default function LiveDsp16ModelsAndFallbacks() {
               fallback={<>{"No forecast: the capacity outlook shows "}<b>{"no weeks"}</b>{" and says why (too little order history, or no calendar rows)."}</>}>
               <div className="dx-kv"><span>{"Powers"}</span><b style={{ whiteSpace: 'normal', fontWeight: '600' }}>{`Capacity outlook, ${r ? r.outlookWeeks : '…'} ISO weeks, peak warnings`}</b></div>
               <div className="dx-kv"><span>{"Computed from"}</span><b style={{ fontWeight: '600' }}><b>{b ? fmtNum(b.calendarDays) : '…'}</b>{" calendar days · festival_ramp, payday, order history"}</b></div>
-              <div className="dx-kv"><span>{"Validation"}</span><b style={{ fontWeight: '600', whiteSpace: 'normal', textAlign: 'right' }} data-testid="validation-demand"><Validation m={r?.models.demand} /></b></div>
+              <div className="dx-kv"><span>{"Validation"}</span><b style={{ fontWeight: '600', whiteSpace: 'normal', textAlign: 'right' }} data-testid="validation-demand"><Validation m={r?.models.demand} of="depot-weeks" /></b></div>
             </Card>
             <Card icon="sparkle-plus" lead="dx-lead--star" title="Planning agent" live={c ? c.model.configured : config.error ? false : null}
               sub={c ? `${c.model.label}${c.model.deployment ? ` · ${c.model.deployment}` : ''} · drafts, you approve` : '…'}
               fallback={<>{"The "}<b>{"manual plan board"}</b>{` with the same rule checks, from the last approved plan.${c && !c.model.configured && c.model.missing.length ? ` Not configured: ${c.model.missing.join(', ')}.` : ''}`}</>}>
-              <div className="dx-kv"><span>{"Can do"}</span><b style={{ whiteSpace: 'normal', fontWeight: '600', textAlign: 'right' }}>{`Read ${c ? c.reads.join(', ').toLowerCase() : 'orders and fleet'}, draft plans and re-plans, rank deferrals, explain each step`}</b></div>
+              <div className="dx-kv"><span>{"Can do"}</span><b style={{ whiteSpace: 'normal', fontWeight: '600', textAlign: 'right' }}>{`Read ${c ? c.reads.map(x => x.replace(/([a-z])([A-Z])/g, '$1 $2')).join(', ').toLowerCase() : 'orders and fleet'}, draft plans and re-plans, rank deferrals, explain each step`}</b></div>
               <div className="dx-kv"><span style={{ whiteSpace: 'nowrap' }}>{"Needs your approval"}</span><b style={{ whiteSpace: 'normal', fontWeight: '600', textAlign: 'right' }}>{`Publish, message stores, override protected outlets${c ? ` · up to ${c.maxRedrafts} redrafts` : ''}`}</b></div>
               <div className="dx-kv"><span>{"Validation"}</span><b style={{ fontWeight: '600', whiteSpace: 'normal', textAlign: 'right' }}>{c ? `${c.rules.length} hard rules checked on every draft` : '…'}</b></div>
             </Card>

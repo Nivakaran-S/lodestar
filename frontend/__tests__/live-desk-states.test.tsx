@@ -73,7 +73,10 @@ describe('desk status', () => {
 describe('DSP-21 Empty queue before cutoff', () => {
   it('DSP-01 moves here only before the cutoff with nothing queued for the open run', () => {
     expect(isEmptyBeforeCutoff({ before: true, openRun: '2026-04-07', inView: '2026-04-07', queued: 0, openCount: undefined })).toBe(true);
-    expect(isEmptyBeforeCutoff({ before: true, openRun: '2026-04-07', inView: '2026-04-06', queued: 12, openCount: 0 })).toBe(true);
+    expect(isEmptyBeforeCutoff({ before: true, openRun: '2026-04-07', inView: '2026-04-06', queued: 12, unplanned: 0, openCount: 0 })).toBe(true);
+    // today's run still has orders to plan: they show, not "No orders yet" for tomorrow
+    expect(isEmptyBeforeCutoff({ before: true, openRun: '2026-04-07', inView: '2026-04-06', queued: 112, unplanned: 112, openCount: 0 })).toBe(false);
+    expect(isEmptyBeforeCutoff({ before: true, openRun: '2026-04-07', inView: '2026-04-06', queued: undefined, unplanned: undefined, openCount: 0 })).toBe(false);
     expect(isEmptyBeforeCutoff({ before: true, openRun: '2026-04-07', inView: '2026-04-07', queued: 3, openCount: undefined })).toBe(false);
     expect(isEmptyBeforeCutoff({ before: false, openRun: '2026-04-07', inView: '2026-04-07', queued: 0, openCount: undefined })).toBe(false);
   });

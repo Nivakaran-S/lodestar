@@ -43,7 +43,8 @@ export default function LiveDsp13ExceptionsInbox() {
   const [tab, setTab] = useState<Tab>('open');
   const [q, setQ] = useState('');
   const [selId, setSelId] = useState<string | null>(null);
-  const [message, setMessage] = useState('');
+  // the message is drafted from the exception, so "Message store" is ready to send; the dispatcher edits it per item
+  const [edited, setEdited] = useState<{ id: string; text: string } | null>(null);
 
   const match = (s: string) => !q.trim() || s.toLowerCase().includes(q.trim().toLowerCase());
   const openItems = (open.data ?? []).filter(x => match(`${x.title} ${x.meta} ${x.outletId ?? ''} ${x.orderId ?? ''}`));
@@ -55,6 +56,10 @@ export default function LiveDsp13ExceptionsInbox() {
   const stops = [...(trip.data?.stops ?? [])].sort((a, b) => a.stopSeq - b.stopSeq);
   const stop = stops.find(s => s.orderId === sel?.orderId) ?? stops.find(s => s.outletId === sel?.outletId);
   const doneStops = stops.filter(s => s.status === 'DELIVERED').length;
+  // a vehicle alert names no outlet: the store waiting on that vehicle's next stop is the one to tell
+  const storeId = sel?.outletId ?? (stops.find(s => s.status !== 'DELIVERED') ?? stops[0])?.outletId;
+  const message = sel && edited?.id === sel.id ? edited.text : sel ? `Update from dispatch: ${sel.title}. We'll keep you posted on your delivery.` : '';
+  const setMessage = (text: string) => { if (sel) setEdited({ id: sel.id, text }); };
 
   const markRead = useAction<string, unknown>((c, id) => c.action('Notifications', id, 'MarkRead'), {
     onSuccess: () => { void open.refresh(); void resolved.refresh(); },
@@ -186,7 +191,7 @@ export default function LiveDsp13ExceptionsInbox() {
                       <div className="dx-card__head"><span className="dx-card__title">{"Message the store"}</span></div>
                       <div className="dx-card__body" style={{ gap: '10px' }}>
                         <div className="dx-inset dx-inset--brand" style={{ gap: '4px', padding: '14px 16px' }}>
-                          <b style={{ fontSize: '14px' }}>{sel.outletId ? `Store manager of ${sel.outletId}` : 'No outlet on this exception'}</b>
+                          <b style={{ fontSize: '14px' }}>{storeId ? `Store manager of ${storeId}${sel.outletId ? '' : ' · next stop'}` : 'No store on this exception'}</b>
                           <textarea className="lv-input dx-t13" aria-label="Message to the store" placeholder="What the store should know or do" value={message} onChange={e => setMessage(e.target.value)} />
                         </div>
                         {sel.notificationId && (
@@ -217,8 +222,9 @@ export default function LiveDsp13ExceptionsInbox() {
                       className="d-btn d-btn--primary"
                       testId="message-store"
                       busy={sendToStore.pending}
-                      disabled={!sel.outletId || !message.trim()}
-                      onClick={() => void sendToStore.run({ outletId: sel.outletId!, text: message.trim(), tripId: sel.tripId })}
+                      disabled={!storeId || !message.trim()}
+                      title={!storeId ? 'This exception has no store or trip to message' : !message.trim() ? 'Write a message first' : undefined}
+                      onClick={() => void sendToStore.run({ outletId: storeId!, text: message.trim(), tripId: sel.tripId })}
                     >
                       <Ic n="message" />{"Message store"}
                     </Btn>

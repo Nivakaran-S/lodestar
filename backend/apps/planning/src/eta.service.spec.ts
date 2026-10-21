@@ -70,6 +70,22 @@ describe('EtaService in Asia/Colombo time', () => {
     expect(out.uncoveredWeeks).toEqual(['W41', 'W42', 'W43', 'W44', 'W45', 'W46', 'W47', 'W48', 'W49']);
   });
 
+  it('capacity outlook leaves out a week the calendar stops inside (a part week is no shortfall)', async () => {
+    const day = (iso: string) => new Date(`${iso}T00:00:00Z`);
+    const history = ['2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24', '2026-09-25'].map((d) => ({ runDate: day(d), tempClass: 'CHILLED', _sum: { m3: 10 } }));
+    const week = (from: string, n: number) => Array.from({ length: n }, (_, i) => ({
+      date: new Date(new Date(`${from}T00:00:00Z`).getTime() + i * 86400000), isOperating: true, festivalRamp: 0, isPayday: false, festivalName: null,
+    }));
+    const prisma = {
+      order: { groupBy: jest.fn().mockResolvedValue(history) },
+      vehicle: { findMany: jest.fn().mockResolvedValue([{ capacityM3: 26.4 }]) },
+      calendar: { findMany: jest.fn().mockResolvedValue([...week('2026-09-28', 7), ...week('2026-10-05', 3)]) }, // ends Wed 7 Oct
+    };
+    const out = await new CapacityService(prisma as any).getCapacityOutlook('KANDY', new Date('2026-10-03T09:00:00Z'));
+    expect(out.weeks.map((w) => w.week)).toEqual(['W40']);
+    expect(out.uncoveredWeeks[0]).toBe('W41');
+  });
+
   it('capacity outlook forecasts nothing without enough history', async () => {
     const prisma = { order: { groupBy: jest.fn().mockResolvedValue([]) }, vehicle: { findMany: jest.fn() }, calendar: { findMany: jest.fn() } };
     const out = await new CapacityService(prisma as any).getCapacityOutlook('KANDY', new Date('2026-10-03T09:00:00Z'));

@@ -144,12 +144,15 @@ export class CapacityService {
 
     const covered: { week: string; weekStart: string; calDays: CalendarDay[] }[] = [];
     const uncoveredWeeks: string[] = [];
+    // A week the calendar stops inside (it ends before that week's Saturday) is not forecast: the model's figure is a
+    // whole week's m³, while the reefer trips would only count the few days the calendar has, a false shortfall.
+    const calendarEnd = calendar.reduce((m, d) => { const iso = toBusinessDate(d.date); return iso > m ? iso : m; }, '');
     for (let w = 0; w < OUTLOOK_WEEKS; w++) {
       const weekStart = addBusinessDays(monday, w * 7);
       const weekEnd = addBusinessDays(weekStart, 7);
       const week = `W${isoWeek(weekStart)}`;
       const calDays = calendar.filter((d) => { const iso = toBusinessDate(d.date); return iso >= weekStart && iso < weekEnd; });
-      if (!calDays.length) { uncoveredWeeks.push(week); continue; }
+      if (!calDays.length || calendarEnd < addBusinessDays(weekStart, 5)) { uncoveredWeeks.push(week); continue; }
       covered.push({ week, weekStart, calDays });
     }
 

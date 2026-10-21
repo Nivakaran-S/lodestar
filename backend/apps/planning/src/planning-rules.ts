@@ -85,12 +85,17 @@ export interface StopOutcome {
   windowClose: string;
 }
 
+/** Fewest outcomes a figure is reported from: below it a score is noise (AUC 0 from four stops), so it waits. */
+export const MIN_SCORED_STOPS = 10;
+export const MIN_AUC_EACH = 3;
+
 /** Mean absolute error of predicted vs actual minutes at the stop (arrival to leave). */
 export function serviceTimeMae(rows: StopOutcome[]): Measured {
   const errs = rows
     .filter((r) => r.serviceMinPredicted !== null && r.arrivalActual && r.leaveActual && r.leaveActual >= r.arrivalActual)
     .map((r) => Math.abs(r.serviceMinPredicted! - (r.leaveActual!.getTime() - r.arrivalActual!.getTime()) / 60_000));
   if (!errs.length) return { value: null, n: 0, reason: 'No stop has both a predicted and an actual service time yet' };
+  if (errs.length < MIN_SCORED_STOPS) return { value: null, n: errs.length, reason: `${errs.length} stop${errs.length === 1 ? '' : 's'} with an actual service time so far; scored from ${MIN_SCORED_STOPS}` };
   return { value: Math.round((errs.reduce((s, e) => s + e, 0) / errs.length) * 10) / 10, n: errs.length };
 }
 
@@ -105,11 +110,11 @@ export function latenessAuc(rows: StopOutcome[]): Measured {
   const scored = rows.filter((r) => r.lateRiskPct !== null && r.arrivalActual).map((r) => ({ p: r.lateRiskPct!, late: arrivedLate(r) }));
   const pos = scored.filter((s) => s.late);
   const neg = scored.filter((s) => !s.late);
-  if (!pos.length || !neg.length) {
+  if (pos.length < MIN_AUC_EACH || neg.length < MIN_AUC_EACH) {
     return {
       value: null,
       n: scored.length,
-      reason: scored.length ? `Needs both late and on-time arrivals (${pos.length} late, ${neg.length} on time so far)` : 'No stop with a late risk has arrived yet',
+      reason: scored.length ? `Needs at least ${MIN_AUC_EACH} late and ${MIN_AUC_EACH} on-time arrivals (${pos.length} late, ${neg.length} on time so far)` : 'No stop with a late risk has arrived yet',
     };
   }
   let wins = 0;

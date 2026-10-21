@@ -241,6 +241,10 @@ describe('DSP-13 Exceptions inbox', () => {
   it('messages the outlet’s store manager through Notifications/Lodestar.Send, then opens live operations', async () => {
     const view = renderLive(shell(<Inbox />), { handler: handler() });
     await screen.findByTestId('exception-detail');
+    // drafted from the exception, so the button is ready; the dispatcher can rewrite it
+    expect((screen.getByLabelText('Message to the store') as HTMLTextAreaElement).value).toMatch(/^Update from dispatch: /);
+    expect(disabled(screen.getByTestId('message-store'))).toBe(false);
+    fireEvent.change(screen.getByLabelText('Message to the store'), { target: { value: '' } });
     expect(disabled(screen.getByTestId('message-store'))).toBe(true);
     fireEvent.change(screen.getByLabelText('Message to the store'), { target: { value: '  Driver waits at the gate  ' } });
     fireEvent.click(screen.getByTestId('message-store'));

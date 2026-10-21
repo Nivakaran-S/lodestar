@@ -99,6 +99,7 @@ function Signal({ w, usual }: { w: OutlookWeek; usual: number }) {
   if (w.festival) parts.push(<span key="f" className="fw7" style={{ color: 'var(--st-deferred-fg)' }}>{w.festival}</span>);
   if (w.hasPayday) parts.push(<span key="p" className="t-2">{w.festival ? 'payday' : 'Payday'}</span>);
   if (w.operatingDays < usual) parts.push(<span key="d" className="t-3">{w.operatingDays} op days</span>);
+  if (!parts.length) return <span className="t-3">{"Usual week"}</span>;
   return <>{parts.flatMap((p, i) => (i ? [<span key={`s${i}`} className="t-3">{"·"}</span>, p] : [p]))}</>;
 }
 
@@ -114,7 +115,7 @@ function Chart({ weeks, peakWeek, peakBad, strip }: { weeks: OutlookWeek[]; peak
   const hs = 15.5 / maxAbs;
   const peakAt = weeks.findIndex(w => w.week === peakWeek);
   return (
-    <svg width="780" height="258" viewBox="0 0 780 258" xmlns="http://www.w3.org/2000/svg" fontFamily="Inter, sans-serif" data-testid="outlook-chart">
+    <svg width="100%" viewBox="0 0 780 258" style={{ display: 'block', height: 'auto', maxWidth: '780px' }} xmlns="http://www.w3.org/2000/svg" fontFamily="Inter, sans-serif" data-testid="outlook-chart">
       {peakAt >= 0 && <rect x={cx(peakAt) - 34.3} y="0" width="68.6" height="182" rx="8" fill="#EEF0FF" />}
       {Array.from({ length: ticks + 1 }, (_, t) => (
         <g key={t}>
@@ -256,11 +257,12 @@ export default function LiveDsp05CapacityOutlook() {
               </div>
             </div>
           )}
-          <div className="d-split" style={{ gap: '18px' }}>
-            <div className="x-col" style={{ flex: '1', gap: '16px' }}>
+          {/* the pane scrolls: the chart and the table keep their full height instead of sharing the window's */}
+          <div className="d-split" style={{ gap: '18px', flexShrink: 0, alignItems: 'flex-start' }}>
+            <div className="x-col" style={{ flex: '1', gap: '16px', minWidth: 0 }}>
               <div className="d-card" style={{ flexShrink: '0' }}>
-                <div className="d-card__head" style={{ minHeight: '48px' }}>
-                  <span className="d-card__title">{"Forecast volume by ISO week"}</span>
+                <div className="d-card__head" style={{ minHeight: '48px', flexWrap: 'wrap', rowGap: '4px' }}>
+                  <span className="d-card__title" style={{ whiteSpace: 'nowrap' }}>{"Forecast volume by ISO week"}</span>
                   <span className="x-note">{"m³ per week · chilled stacked under total"}</span>
                   <span className="spacer" />
                   <div className="x-legend">
@@ -276,7 +278,7 @@ export default function LiveDsp05CapacityOutlook() {
                   {weeks.length > 0 && <Chart weeks={weeks} peakWeek={peak?.week} peakBad={peakBad} strip={strip} />}
                 </div>
               </div>
-              <div className="d-card" style={{ flex: '1', minHeight: '0', overflow: 'auto' }}>
+              <div className="d-card" style={{ flexShrink: 0, overflowX: 'auto' }}>
                 <div className="d-table" data-testid="outlook-table">
                   <div className="d-tr d-tr--head" style={{ minHeight: '34px' }}>
                     <span className="d-td" style={{ width: '48px' }}>{"Week"}</span>
