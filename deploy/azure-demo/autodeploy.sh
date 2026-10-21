@@ -19,7 +19,7 @@ last=$(cat backups/.last 2>/dev/null || echo 0)
 if [ $(( $(date -u +%s) - last )) -ge 86400 ]; then
   mkdir -p backups
   # a failed backup is retried in an hour, not on every 3-minute run
-  deploy/azure-demo/backup.sh || { echo "backup failed; retrying in an hour"; echo $(( $(date -u +%s) - 86400 + 3600 )) > backups/.last; }
+  bash deploy/azure-demo/backup.sh || { echo "backup failed; retrying in an hour"; echo $(( $(date -u +%s) - 86400 + 3600 )) > backups/.last; }
 fi
 
 [ -e .deploy-freeze ] && { echo "frozen (.deploy-freeze)"; exit 0; }
