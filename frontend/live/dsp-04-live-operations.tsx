@@ -161,7 +161,7 @@ export default function LiveDsp04LiveOperations() {
                 </span>
               </div>
               <div className="d-h1" style={{ fontSize: '28px' }}>
-                {top.length ? `${exceptions.data!.length} thing${exceptions.data!.length === 1 ? '' : 's'} need you now` : 'All routes running'}
+                {top.length ? `${exceptions.data!.length} thing${exceptions.data!.length === 1 ? ' needs' : 's need'} you now` : 'All routes running'}
               </div>
             </div>
             <div className="hstack" style={{ gap: '0' }}>

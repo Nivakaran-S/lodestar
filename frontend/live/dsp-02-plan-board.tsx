@@ -169,7 +169,7 @@ export default function LiveDsp02PlanBoard() {
                 <div className="x-hlink lv-click" role="link" tabIndex={0} data-testid="to-review"
                   onClick={e => { e.stopPropagation(); openInfeasible(); }} onKeyDown={e => { if (e.key === 'Enter') openInfeasible(); }}>
                   <div className="vstack" style={{ gap: '2px', minWidth: '0' }}>
-                    <div>{review.length} orders to review</div>
+                    <div>{review.length} order{review.length === 1 ? '' : 's'} to review</div>
                     <span style={{ fontSize: '12.5px', whiteSpace: 'nowrap' }}>{review.slice(0, 2).map(r => r.orderId).join(' · ')}</span>
                   </div>
                   <Ic n="chevron-right" />

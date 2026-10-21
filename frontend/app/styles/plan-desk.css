@@ -20,9 +20,26 @@
 :is(.b-P2, .b-P5, .b-P6) .dx-kv > .hstack:last-child, :is(.b-P2, .b-P5, .b-P6) .dx-kv .m-pill { flex-shrink: 0; white-space: nowrap; }
 :is(.b-P2, .b-P5, .b-P6) .dx-kv > b, :is(.b-P2, .b-P5, .b-P6) .dx-kv > b * { white-space: normal !important; }
 :is(.b-P2, .b-P5, .b-P6) .dx-kv > b { min-width: 0; overflow-wrap: anywhere; }
+/* plan board trip cards (DSP-02/12/39/40): a narrow card puts its minutes under the title instead of over the next card */
+:is(.b-P2, .b-P5, .b-P6) .x-trip__head { flex-wrap: wrap; height: auto; min-height: 22px; row-gap: 2px; }
+:is(.b-P2, .b-P5, .b-P6) .x-trip__t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* rule checks in the 304 px side panel (DSP-02/12/39/40) wrap their label rather than run past the card */
+:is(.b-P2, .b-P5, .b-P6) .x-ck__l { white-space: normal; min-width: 0; padding: 3px 0; }
+/* the queue's "why it matters" tags (DSP-01) wrap inside their column */
+:is(.b-P2, .b-P5, .b-P6) .d-tr .x-meta { flex-wrap: wrap; row-gap: 4px; white-space: normal; }
+:is(.b-P2, .b-P5, .b-P6) .d-tr .x-meta .m-pill { height: auto; min-height: 24px; padding-top: 3px; padding-bottom: 3px; white-space: normal; }
 /* a card squeezed by the window keeps its rows whole and scrolls them, instead of overlapping them */
 :is(.b-P2, .b-P5, .b-P6) .dx-card__body { overflow-y: auto; }
 :is(.b-P2, .b-P5, .b-P6) .dx-card__body > * { flex-shrink: 0; }
+
+/* ---------- up to 1535 px (a laptop with the full sidebar has ~1050 px of content): the head wraps its title and
+   toolbar instead of crushing the title to a word a line, and a table wider than its card scrolls inside it ---------- */
+@media (max-width: 1535px) {
+  :is(.b-P2, .b-P5, .b-P6) .d-head { flex-wrap: wrap; row-gap: var(--s-3); }
+  :is(.b-P2, .b-P5, .b-P6) .d-head__txt { flex: 1 1 auto; min-width: 260px; }
+  :is(.b-P2, .b-P5, .b-P6) .d-head .d-toolbar { flex-wrap: wrap; row-gap: var(--s-2); }
+  :is(.b-P2, .b-P5, .b-P6) :is(.d-card, .dx-card) { overflow-x: auto; overflow-y: hidden; }
+}
 
 /* ---------- 1024 to 1279 px (and the design-mode boards below that): icon rail ---------- */
 @media (max-width: 1279px) {
@@ -40,14 +57,11 @@
 
   /* content reflows: KPI rows wrap, side panels narrow, wide rows scroll inside their card */
   :is(.b-P2, .b-P5, .b-P6) .d-main, :is(.b-P2, .b-P5, .b-P6) .dx-main { padding: var(--s-5) var(--s-6); }
-  :is(.b-P2, .b-P5, .b-P6) .d-head { flex-wrap: wrap; row-gap: var(--s-3); }
-  :is(.b-P2, .b-P5, .b-P6) .d-head__txt { min-width: 260px; }
   :is(.b-P2, .b-P5, .b-P6) .d-kpis { flex-wrap: wrap; }
   :is(.b-P2, .b-P5, .b-P6) .d-kpis > * { flex: 1 1 200px; }
   :is(.b-P2, .b-P5, .b-P6) .d-panel { width: 300px; }
   :is(.b-P2, .b-P5, .b-P6) .d-toolbar { flex-wrap: wrap; row-gap: var(--s-2); }
   :is(.b-P2, .b-P5, .b-P6) :is(.d-card__head, .dx-card__head) { flex-wrap: wrap; row-gap: var(--s-1); }
-  :is(.b-P2, .b-P5, .b-P6) :is(.d-card, .dx-card) { overflow-x: auto; overflow-y: hidden; }
   /* boards of three or more columns (DSP-17 hero + KPIs, DSP-20 settings) wrap to two; the pane then scrolls */
   :is(.b-P2, .b-P5, .b-P6) .dx-main:has(> .dx-hrow > :nth-child(3)) > * { flex: 0 0 auto !important; min-height: auto !important; }
   :is(.b-P2, .b-P5, .b-P6) .dx-main > .dx-hrow:has(> :nth-child(3)) { flex-wrap: wrap; }
