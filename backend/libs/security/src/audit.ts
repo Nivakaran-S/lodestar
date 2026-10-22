@@ -106,27 +106,41 @@ export class HttpAuditSink implements AuditSink {
 }
 
 // csv: uploaded reference files (ADM-14) are never copied into the audit log, only their SHA-256.
-const REDACT = /pass(word)?|secret|token|signature|authorization|photo(data|base64)|^csv$/i;
+// pin: a Dock PIN (Users.SetDockPin) is never copied either.
+const REDACT = /pass(word)?|secret|token|signature|authorization|photo(data|base64)|^csv$|^(dock_?)?pin$/i;
+/** Redacted keys that hold a guessable secret (not just bulk): the body hash must not cover their value. */
+const GUESSABLE = /pass(word)?|secret|token|authorization|^(dock_?)?pin$/i;
 const MAX_PAYLOAD_CHARS = 4096;
 
-/** Removes secrets and bulky fields from a request body before it is audited. */
-export function redact(value: unknown, depth = 0): unknown {
+/** Removes secrets and bulky fields from a request body before it is audited; `hit.redacted` says whether a secret was. */
+export function redact(value: unknown, depth = 0, hit?: { redacted: boolean }): unknown {
   if (depth > 6 || value === null || typeof value !== 'object') return value;
-  if (Array.isArray(value)) return value.slice(0, 50).map((v) => redact(v, depth + 1));
+  if (Array.isArray(value)) return value.slice(0, 50).map((v) => redact(v, depth + 1, hit));
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-    out[k] = REDACT.test(k) ? '[redacted]' : redact(v, depth + 1);
+    if (REDACT.test(k)) {
+      out[k] = '[redacted]';
+      if (hit && GUESSABLE.test(k)) hit.redacted = true;
+    } else out[k] = redact(v, depth + 1, hit);
   }
   return out;
 }
 
-/** Audit payload for a request body: a SHA-256 of the full body plus a redacted, size-capped copy. */
+/**
+ * Audit payload for a request body: a SHA-256 of the full body plus a redacted, size-capped copy. When a
+ * guessable secret was redacted the hash is of the redacted body (marked bodyRedacted): a hash of a body holding a
+ * 4-digit PIN or a short password could be reversed by trying every value. Bulky fields (csv, photos) keep the
+ * full-body hash.
+ */
 export function auditPayload(body: unknown, extra: Record<string, unknown> = {}): Record<string, unknown> {
-  const raw = body === undefined ? '' : JSON.stringify(body);
-  const redacted = JSON.stringify(redact(body) ?? null);
+  const hit = { redacted: false };
+  const copy = redact(body, 0, hit);
+  const redacted = JSON.stringify(copy ?? null);
+  const raw = body === undefined ? '' : hit.redacted ? redacted : JSON.stringify(body);
   return {
     ...extra,
     bodySha256: createHash('sha256').update(raw).digest('hex'),
-    body: redacted.length > MAX_PAYLOAD_CHARS ? { truncated: true, preview: redacted.slice(0, MAX_PAYLOAD_CHARS) } : redact(body),
+    ...(hit.redacted ? { bodyRedacted: true } : {}),
+    body: redacted.length > MAX_PAYLOAD_CHARS ? { truncated: true, preview: redacted.slice(0, MAX_PAYLOAD_CHARS) } : copy,
   };
 }

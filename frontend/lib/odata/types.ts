@@ -236,6 +236,10 @@ export interface User {
   role: UserRole;
   depot?: Depot | null;
   outletId?: string | null;
+  /** a driver's vehicle (the vehicle_id claim) */
+  vehicleId?: string | null;
+  /** a loader's Dock sign-in ID, KDY-0427 */
+  staffId?: string | null;
   phone?: string | null;
   isActive: boolean;
   createdAt?: string;

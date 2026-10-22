@@ -101,6 +101,7 @@
         <Property Name="depot" Type="Edm.String"/>
         <Property Name="outletId" Type="Edm.String"/>
         <Property Name="vehicleId" Type="Edm.String"/>
+        <Property Name="staffId" Type="Edm.String"/>
         <Property Name="phone" Type="Edm.String"/>
         <Property Name="isActive" Type="Edm.Boolean" Nullable="false"/>
         <Property Name="createdAt" Type="Edm.DateTimeOffset" Nullable="false"/>
@@ -552,6 +553,16 @@
         <Property Name="deferred" Type="Edm.Int32"/>
         <Property Name="delivered" Type="Edm.Int32"/>
       </ComplexType>
+      <Action Name="SetDockPin" IsBound="true">
+        <Parameter Name="bindingParameter" Type="Lodestar.User" Nullable="false"/>
+        <Parameter Name="pin" Type="Edm.String" Nullable="false"/>
+        <ReturnType Type="Edm.Untyped"/>
+      </Action>
+      <Function Name="NextStaffId" IsBound="true">
+        <Parameter Name="bindingParameter" Type="Collection(Lodestar.User)" Nullable="false"/>
+        <Parameter Name="depot" Type="Edm.String" Nullable="false"/>
+        <ReturnType Type="Edm.Untyped"/>
+      </Function>
       <Function Name="MyPreferences" IsBound="true">
         <Parameter Name="bindingParameter" Type="Collection(Lodestar.User)" Nullable="false"/>
         <ReturnType Type="Edm.Untyped"/>

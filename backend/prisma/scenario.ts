@@ -55,13 +55,15 @@ export interface Person {
   phone: string | null;
   /** a driver's vehicle: trips for it are assigned to them (vehicle_id claim) */
   vehicleId?: string | null;
+  /** a loader's Dock sign-in ID (realm attribute staff_id, LD-06) */
+  staffId?: string | null;
 }
 
 export const PEOPLE: Person[] = [
   { key: 'fathima', id: USER_IDS.fathima, email: 'fathima@waypoint.lk', name: 'Fathima Rizwan', role: Role.STORE_MANAGER, depot: 'KANDY', outletId: 'OUT106', phone: '+94774567890' },
   // Nilanthi covers both depots through her token claim; her home depot is Peliyagoda.
   { key: 'nilanthi', id: USER_IDS.nilanthi, email: 'nilanthi@waypoint.lk', name: 'Nilanthi Perera', role: Role.DISPATCHER, depot: 'PELIYAGODA', outletId: null, phone: '+94771234567' },
-  { key: 'kasun', id: USER_IDS.kasun, email: 'kasun@waypoint.lk', name: 'Kasun Jayawardena', role: Role.LOADER, depot: 'KANDY', outletId: null, phone: '+94772345678' },
+  { key: 'kasun', id: USER_IDS.kasun, email: 'kasun@waypoint.lk', name: 'Kasun Jayawardena', role: Role.LOADER, depot: 'KANDY', outletId: null, phone: '+94772345678', staffId: 'KDY-0427' },
   { key: 'ruwan', id: USER_IDS.ruwan, email: 'ruwan@waypoint.lk', name: 'Ruwan Bandara', role: Role.DRIVER, depot: 'KANDY', outletId: null, phone: '+94773456789', vehicleId: 'VEH057' },
   { key: 'admin', id: USER_IDS.admin, email: 'admin@waypoint.lk', name: 'Lodestar Admin', role: Role.ADMIN, depot: null, outletId: null, phone: null },
 ];
@@ -379,7 +381,7 @@ type Log = (msg: string) => void;
  * Returns the id actually stored.
  */
 async function upsertPerson(db: ScenarioDb, p: Person, log: Log, s: ScenarioSummary): Promise<string> {
-  const data = { email: p.email, name: p.name, role: p.role, depot: p.depot, outletId: p.outletId, phone: p.phone, vehicleId: p.vehicleId ?? null, isActive: true, passwordHash: null };
+  const data = { email: p.email, name: p.name, role: p.role, depot: p.depot, outletId: p.outletId, phone: p.phone, vehicleId: p.vehicleId ?? null, staffId: p.staffId ?? null, isActive: true, passwordHash: null };
   if (await db.user.findUnique({ where: { id: p.id } })) {
     await db.user.update({ where: { id: p.id }, data });
     return p.id;

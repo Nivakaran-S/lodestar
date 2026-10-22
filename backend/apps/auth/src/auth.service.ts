@@ -21,25 +21,29 @@ export interface DirectoryAccess {
   depot: string | null;
   outletId: string | null;
   vehicleId: string | null;
+  /** a loader's Dock sign-in ID (the staff_id attribute the sign-in extension looks the loader up by) */
+  staffId: string | null;
   isActive: boolean;
 }
 
-export const ACCESS_FIELDS = ['role', 'depot', 'outletId', 'vehicleId', 'isActive'] as const;
+export const ACCESS_FIELDS = ['role', 'depot', 'outletId', 'vehicleId', 'staffId', 'isActive'] as const;
 
 const accessOf = (u: Partial<DirectoryAccess>): DirectoryAccess => ({
   role: u.role as Role,
   depot: u.depot ?? null,
   outletId: u.outletId ?? null,
   vehicleId: u.vehicleId ?? null,
+  staffId: u.staffId ?? null,
   isActive: u.isActive ?? true,
 });
 
-/** Keycloak user attributes (token claims depot, outlet_id, vehicle_id); null removes one. */
-export function identityAttributes(a: Pick<DirectoryAccess, 'depot' | 'outletId' | 'vehicleId'>): Record<string, string[] | null> {
+/** Keycloak user attributes (token claims depot, outlet_id, vehicle_id; the Dock sign-in's staff_id); null removes one. */
+export function identityAttributes(a: Pick<DirectoryAccess, 'depot' | 'outletId' | 'vehicleId' | 'staffId'>): Record<string, string[] | null> {
   return {
     depot: a.depot ? [a.depot] : null,
     outlet_id: a.outletId ? [a.outletId] : null,
     vehicle_id: a.vehicleId ? [a.vehicleId] : null,
+    staff_id: a.staffId ? [a.staffId] : null,
   };
 }
 
@@ -91,7 +95,7 @@ export class AuthService {
   async me(p: Principal) {
     const user = await this.prisma.user.findUnique({
       where: { id: p.sub },
-      select: { id: true, email: true, name: true, role: true, depot: true, outletId: true, vehicleId: true, phone: true, isActive: true },
+      select: { id: true, email: true, name: true, role: true, depot: true, outletId: true, vehicleId: true, staffId: true, phone: true, isActive: true },
     });
     return {
       sub: p.sub,
@@ -170,6 +174,7 @@ export class AuthService {
     if (data.depot) attributes.depot = [data.depot];
     if (data.outletId) attributes.outlet_id = [data.outletId];
     if (data.vehicleId) attributes.vehicle_id = [data.vehicleId];
+    if (data.staffId) attributes.staff_id = [data.staffId];
     return this.keycloak.createUser({
       email: data.email,
       firstName,
@@ -195,6 +200,10 @@ export class AuthService {
       return await this.prisma.user.create({ data: { ...data, id } as Prisma.UserUncheckedCreateInput });
     } catch (err) {
       if (this.keycloak.configured) await this.compensateIdentity(id, data, actor, err as Error);
+      // Two admins giving out the same staff ID at once: the loser gets a 409, not a 500.
+      if (isUniqueViolation(err) && String((err as { meta?: { target?: unknown } }).meta?.target ?? '').includes('staffId')) {
+        throw ODataError.conflict(`Staff ID ${data.staffId} is already taken`, 'staffId');
+      }
       throw err;
     }
   }
@@ -232,6 +241,17 @@ export class AuthService {
    * e.g. a stale ETag).
    */
   async updateUser(where: Prisma.UserWhereInput, patch: Record<string, any>, actor: Principal): Promise<number> {
+    try {
+      return await this.writeUser(where, patch, actor);
+    } catch (err) {
+      if (isUniqueViolation(err) && String((err as { meta?: { target?: unknown } }).meta?.target ?? '').includes('staffId')) {
+        throw ODataError.conflict(`Staff ID ${patch.staffId} is already taken`, 'staffId');
+      }
+      throw err;
+    }
+  }
+
+  private async writeUser(where: Prisma.UserWhereInput, patch: Record<string, any>, actor: Principal): Promise<number> {
     const touchesAccess = ACCESS_FIELDS.some((f) => f in patch);
     if (!touchesAccess) return (await this.prisma.user.updateMany({ where, data: patch })).count;
 
@@ -279,12 +299,39 @@ export class AuthService {
       await this.record(actor, 'Users.SyncAccess', userId, 'FAILED', { ...payload, error: error.message, identityRestored: restored });
       throw error;
     }
-    await this.record(actor, 'Users.SyncAccess', userId, 'SUCCESS', { ...payload, sessionsRevoked: true });
+    // Someone who is no longer a loader keeps no Dock PIN (it would still open a session by email + PIN).
+    let pinRemoved: boolean | undefined;
+    if (from.role === Role.LOADER && to.role !== Role.LOADER) {
+      try {
+        await this.keycloak.removePin(userId);
+        pinRemoved = true;
+      } catch (err) {
+        pinRemoved = false;
+        this.logger.warn(`Users.Update ${userId}: Dock PIN not removed after the role change (${(err as Error).message}); remove it in Keycloak`);
+      }
+    }
+    await this.record(actor, 'Users.SyncAccess', userId, 'SUCCESS', { ...payload, sessionsRevoked: true, ...(pinRemoved !== undefined ? { pinRemoved } : {}) });
+  }
+
+  /**
+   * ADM-04 "Set Dock PIN" / "Reset PIN": replaces a loader's Dock PIN in Keycloak (the extension's lodestar-pin
+   * endpoint; Keycloak hashes it). The PIN is never logged, stored here or returned. The OData layer audits the
+   * call as Users.SetDockPin with the PIN redacted (libs/security audit.ts).
+   */
+  async setDockPin(userId: string, pin: string): Promise<{ pinSet: true }> {
+    if (!this.keycloak.configured) throw new ODataError(503, 'ServiceUnavailable', 'The identity provider is not configured: a Dock PIN cannot be set');
+    try {
+      await this.keycloak.setPin(userId, pin);
+    } catch (err) {
+      if (err instanceof ODataError) throw err;
+      throw identityError(err);
+    }
+    return { pinSet: true };
   }
 
   private async applyIdentityAccess(userId: string, from: DirectoryAccess, to: DirectoryAccess) {
     if (from.role !== to.role) await this.keycloak.setRealmRole(userId, REALM_ROLE[to.role], Object.values(REALM_ROLE));
-    const attrsChanged = from.depot !== to.depot || from.outletId !== to.outletId || from.vehicleId !== to.vehicleId;
+    const attrsChanged = from.depot !== to.depot || from.outletId !== to.outletId || from.vehicleId !== to.vehicleId || from.staffId !== to.staffId;
     if (attrsChanged || from.isActive !== to.isActive) {
       await this.keycloak.updateUser(userId, {
         ...(attrsChanged ? { attributes: identityAttributes(to) } : {}),

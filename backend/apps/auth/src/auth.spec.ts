@@ -1,6 +1,6 @@
 import { anything, capture, deepEqual, instance, mock, verify, when } from 'ts-mockito';
 import { depotDelegate } from '../../../libs/odata/test/depots';
-import { ODataError } from '@lodestar/odata';
+import { ODataError, operationsOf } from '@lodestar/odata';
 import { AuditEvent, AuditSink, DevicePostureService, Principal, rowFilter, ServiceTokenClient } from '@lodestar/security';
 import { personas, principal } from '../../../libs/security/test/principals';
 import { AuthService } from './auth.service';
@@ -19,13 +19,32 @@ const w = (p = personas.admin) => ({ principal: p, headers: {} });
 describe('UsersSet', () => {
   let auth: AuthService;
   let vehicle: FindUniqueDelegate;
+  let users: { findFirst(a: any): Promise<any>; findMany(a: any): Promise<any[]> };
   let set: UsersSet;
+  /** Directory rows the uniqueness checks see (other active drivers, taken staff IDs). */
+  let rows: Array<{ id: string; name: string; role: string; isActive: boolean; vehicleId?: string | null; staffId?: string | null }>;
+  const VEHICLES: Record<string, string> = { VEH057: 'KANDY', VEH058: 'KANDY', VEH001: 'PELIYAGODA' };
 
   beforeEach(() => {
     auth = mock(AuthService);
     vehicle = mock<FindUniqueDelegate>();
-    when(vehicle.findUnique(anything())).thenCall(async (a: any) => (a.where.id === 'VEH057' ? { id: 'VEH057' } : null));
-    set = new UsersSet({ vehicle: instance(vehicle), depot: depotDelegate() } as any, instance(auth));
+    users = mock<{ findFirst(a: any): Promise<any>; findMany(a: any): Promise<any[]> }>();
+    rows = [];
+    when(vehicle.findUnique(anything())).thenCall(async (a: any) => (VEHICLES[a.where.id] ? { id: a.where.id, depot: VEHICLES[a.where.id] } : null));
+    // A tiny stand-in for the where clauses checkScope sends (role/isActive/vehicleId/staffId, NOT id).
+    when(users.findFirst(anything())).thenCall(async ({ where }: any) => {
+      const hit = rows.find(r =>
+        (where.role === undefined || r.role === where.role)
+        && (where.isActive === undefined || r.isActive === where.isActive)
+        && (where.vehicleId === undefined || r.vehicleId === where.vehicleId)
+        && (where.staffId === undefined || r.staffId === where.staffId)
+        && (where.NOT?.id === undefined || r.id !== where.NOT.id));
+      return hit ? { id: hit.id, name: hit.name } : null;
+    });
+    when(users.findMany(anything())).thenCall(async ({ where }: any) =>
+      rows.filter(r => r.staffId?.startsWith(where.staffId.startsWith)).map(r => ({ staffId: r.staffId })));
+    const outlet = { findUnique: async (a: any) => (['OUT106', 'OUT108'].includes(a.where.id) ? { id: a.where.id } : null) };
+    set = new UsersSet({ vehicle: instance(vehicle), depot: depotDelegate(), outlet, user: instance(users) } as any, instance(auth));
     when(auth.createIdentity(anything())).thenResolve('kc-123');
   });
 
@@ -37,9 +56,43 @@ describe('UsersSet', () => {
       verify(auth.createIdentity(anything())).never();
     });
 
-    it('requires an outletId for a store manager', async () => {
+    it('requires an existing outlet for a store manager', async () => {
       await expect(set.beforeCreate({ ...body, role: 'STORE_MANAGER' })).rejects.toMatchObject({ status: 400, target: 'outletId' });
+      await expect(set.beforeCreate({ ...body, role: 'STORE_MANAGER', outletId: 'OUT999' })).rejects.toMatchObject({ status: 400, target: 'outletId' });
       await expect(set.beforeCreate({ ...body, role: 'STORE_MANAGER', outletId: 'OUT106' })).resolves.toMatchObject({ outletId: 'OUT106' });
+    });
+
+    it('a driver needs a depot and a vehicle of that depot', async () => {
+      const driver = { ...body, role: 'DRIVER' };
+      await expect(set.beforeCreate({ ...driver, depot: undefined, vehicleId: 'VEH057' })).rejects.toMatchObject({ status: 400, target: 'depot' });
+      await expect(set.beforeCreate(driver)).rejects.toMatchObject({ status: 400, target: 'vehicleId', message: 'A driver needs a vehicle' });
+      await expect(set.beforeCreate({ ...driver, vehicleId: 'VEH001' })).rejects.toMatchObject({ status: 400, target: 'vehicleId', message: expect.stringContaining('PELIYAGODA') });
+      await expect(set.beforeCreate({ ...driver, vehicleId: 'VEH058' })).resolves.toMatchObject({ vehicleId: 'VEH058' });
+    });
+
+    it('one active driver per vehicle: a second one is refused (409, naming the first); a disabled one does not count', async () => {
+      rows = [{ id: 'u-ruwan', name: 'Ruwan Bandara', role: 'DRIVER', isActive: true, vehicleId: 'VEH057' }];
+      await expect(set.beforeCreate({ ...body, role: 'DRIVER', vehicleId: 'VEH057' }))
+        .rejects.toMatchObject({ status: 409, target: 'vehicleId', message: expect.stringContaining('Ruwan Bandara') });
+      rows[0].isActive = false;
+      await expect(set.beforeCreate({ ...body, role: 'DRIVER', vehicleId: 'VEH057' })).resolves.toMatchObject({ vehicleId: 'VEH057' });
+    });
+
+    it('a loader needs a depot and a unique staff ID (depot prefix + 4 digits, stored upper-case)', async () => {
+      const loader = { ...body, role: 'LOADER' };
+      await expect(set.beforeCreate(loader)).rejects.toMatchObject({ status: 400, target: 'staffId' });
+      await expect(set.beforeCreate({ ...loader, depot: undefined, staffId: 'KDY-0428' })).rejects.toMatchObject({ status: 400, target: 'depot' });
+      await expect(set.beforeCreate({ ...loader, staffId: 'KDY-42' })).rejects.toMatchObject({ status: 400, target: 'staffId' });
+      await expect(set.beforeCreate({ ...loader, staffId: ' kdy-0428 ' })).resolves.toMatchObject({ staffId: 'KDY-0428' });
+      rows = [{ id: 'u-kasun', name: 'Kasun Jayawardena', role: 'LOADER', isActive: true, staffId: 'KDY-0427' }];
+      await expect(set.beforeCreate({ ...loader, staffId: 'kdy-0427' }))
+        .rejects.toMatchObject({ status: 409, target: 'staffId', message: expect.stringContaining('Kasun') });
+    });
+
+    it('only a driver has a vehicle and only a loader a staff ID', async () => {
+      await expect(set.beforeCreate({ ...body, vehicleId: 'VEH057' })).rejects.toMatchObject({ status: 400, target: 'vehicleId' });
+      await expect(set.beforeCreate({ ...body, staffId: 'KDY-0428' })).rejects.toMatchObject({ status: 400, target: 'staffId' });
+      await expect(set.beforeCreate({ ...body, vehicleId: null, staffId: '' })).resolves.toMatchObject({ vehicleId: null, staffId: null });
     });
 
     it('validates only: no identity is created before the row is written', async () => {
@@ -69,9 +122,41 @@ describe('UsersSet', () => {
       await expect(set.beforeUpdate({ role: 'STORE_MANAGER', outletId: 'OUT108' }, { id: 'u1', role: 'DRIVER' })).resolves.toEqual({ role: 'STORE_MANAGER', outletId: 'OUT108' });
     });
 
-    it('checks a new vehicleId and allows clearing it', async () => {
-      await expect(set.beforeUpdate({ vehicleId: 'VEH999' }, { id: 'u1', role: 'DRIVER' })).rejects.toMatchObject({ status: 400, target: 'vehicleId' });
-      await expect(set.beforeUpdate({ vehicleId: null }, { id: 'u1', role: 'DRIVER' })).resolves.toEqual({ vehicleId: null });
+    const ruwan = { id: 'u-ruwan', name: 'Ruwan Bandara', role: 'DRIVER', depot: 'KANDY', vehicleId: 'VEH057', staffId: null, isActive: true };
+    const kasun = { id: 'u-kasun', name: 'Kasun Jayawardena', role: 'LOADER', depot: 'KANDY', vehicleId: null, staffId: 'KDY-0427', isActive: true };
+
+    it('checks a new vehicleId; a driver cannot lose their vehicle, someone leaving the driver role does', async () => {
+      await expect(set.beforeUpdate({ vehicleId: 'VEH999' }, ruwan)).rejects.toMatchObject({ status: 400, target: 'vehicleId' });
+      await expect(set.beforeUpdate({ vehicleId: null }, ruwan)).rejects.toMatchObject({ status: 400, target: 'vehicleId' });
+      await expect(set.beforeUpdate({ role: 'DISPATCHER' }, ruwan)).resolves.toEqual({ role: 'DISPATCHER', vehicleId: null });
+      await expect(set.beforeUpdate({ role: 'DISPATCHER', vehicleId: 'VEH057' }, ruwan)).rejects.toMatchObject({ status: 400, target: 'vehicleId' });
+    });
+
+    it('moving a driver to a vehicle someone else drives is refused; keeping their own is fine', async () => {
+      rows = [ruwan, { id: 'u-amal', name: 'Amal Perera', role: 'DRIVER', isActive: true, vehicleId: 'VEH058' }];
+      await expect(set.beforeUpdate({ vehicleId: 'VEH058' }, ruwan)).rejects.toMatchObject({ status: 409, message: expect.stringContaining('Amal Perera') });
+      await expect(set.beforeUpdate({ vehicleId: 'VEH057', name: 'Ruwan B' }, ruwan)).resolves.toEqual({ vehicleId: 'VEH057', name: 'Ruwan B' });
+      // Reactivating a disabled driver whose vehicle went to someone else meanwhile.
+      rows = [ruwan, { id: 'u-amal', name: 'Amal Perera', role: 'DRIVER', isActive: true, vehicleId: 'VEH057' }];
+      await expect(set.beforeUpdate({ isActive: true }, { ...ruwan, isActive: false })).rejects.toMatchObject({ status: 409 });
+      // Deactivating is always allowed.
+      await expect(set.beforeUpdate({ isActive: false }, ruwan)).resolves.toEqual({ isActive: false });
+    });
+
+    it('a name edit on an older driver without a vehicle still saves; making someone a driver needs one', async () => {
+      const legacy = { ...ruwan, vehicleId: null };
+      await expect(set.beforeUpdate({ name: 'R B', role: 'DRIVER', depot: 'KANDY' }, legacy)).resolves.toEqual({ name: 'R B', role: 'DRIVER', depot: 'KANDY' });
+      await expect(set.beforeUpdate({ role: 'DRIVER' }, { ...kasun, staffId: 'KDY-0427' })).rejects.toMatchObject({ status: 400, target: 'vehicleId' });
+      await expect(set.beforeUpdate({ role: 'DRIVER', vehicleId: 'VEH058' }, kasun)).resolves.toEqual({ role: 'DRIVER', vehicleId: 'VEH058', staffId: null });
+    });
+
+    it('a loader keeps a unique staff ID; making someone a loader needs one', async () => {
+      rows = [kasun];
+      await expect(set.beforeUpdate({ staffId: null }, kasun)).rejects.toMatchObject({ status: 400, target: 'staffId' });
+      await expect(set.beforeUpdate({ staffId: 'kdy-0427' }, kasun)).resolves.toEqual({ staffId: 'KDY-0427' });
+      await expect(set.beforeUpdate({ role: 'LOADER', vehicleId: null }, ruwan)).rejects.toMatchObject({ status: 400, target: 'staffId' });
+      await expect(set.beforeUpdate({ role: 'LOADER', vehicleId: null, staffId: 'KDY-0427' }, ruwan)).rejects.toMatchObject({ status: 409, target: 'staffId' });
+      await expect(set.beforeUpdate({ role: 'LOADER', vehicleId: null, staffId: 'KDY-0500' }, ruwan)).resolves.toEqual({ role: 'LOADER', vehicleId: null, staffId: 'KDY-0500' });
     });
 
     it('does not call the identity provider itself (updateWhere does, transactionally)', async () => {
@@ -85,6 +170,51 @@ describe('UsersSet', () => {
     await expect(set.updateWhere({ id: 'u1' }, { role: 'LOADER' }, w())).resolves.toBe(1);
     verify(auth.updateUser(deepEqual({ id: 'u1' }), deepEqual({ role: 'LOADER' }), personas.admin)).once();
     expect(() => set.updateWhere({ id: 'u1' }, {})).toThrow();
+  });
+
+  describe('SetDockPin (ADM-04 Set Dock PIN / Reset PIN)', () => {
+    const op = (entity: any, pin: unknown) => ({ principal: personas.admin, params: { pin }, headers: {}, entity, key: { id: entity.id } });
+    const loader = { id: 'u-kasun', role: 'LOADER', isActive: true };
+
+    it('admins only: the PIN action and the staff ID suggestion', () => {
+      const ops = Object.fromEntries(operationsOf(UsersSet).map((o) => [o.name, o]));
+      expect(ops.SetDockPin).toMatchObject({ kind: 'action', binding: 'entity', roles: ['admin'] });
+      expect(ops.NextStaffId).toMatchObject({ kind: 'function', binding: 'collection', roles: ['admin'] });
+    });
+
+    it('sets a 4-digit PIN for an active loader through AuthService and returns no PIN', async () => {
+      when(auth.setDockPin(anything(), anything())).thenResolve({ pinSet: true });
+      await expect(set.setDockPin(op(loader, '2468'))).resolves.toEqual({ pinSet: true });
+      verify(auth.setDockPin('u-kasun', '2468')).once();
+    });
+
+    it.each([['246'], ['24680'], ['24a8'], [2468], [null]])('refuses %p (4 digits only)', async (pin) => {
+      expect(() => set.setDockPin(op(loader, pin))).toThrow(expect.objectContaining({ status: 400, target: 'pin' }));
+      verify(auth.setDockPin(anything(), anything())).never();
+    });
+
+    it('only a loader has a Dock PIN, and only one who can sign in', () => {
+      expect(() => set.setDockPin(op({ ...loader, role: 'DRIVER' }, '2468'))).toThrow(expect.objectContaining({ status: 400 }));
+      expect(() => set.setDockPin(op({ ...loader, isActive: false }, '2468'))).toThrow(expect.objectContaining({ status: 409 }));
+      verify(auth.setDockPin(anything(), anything())).never();
+    });
+  });
+
+  describe('NextStaffId', () => {
+    const fn = (depot: string) => set.nextStaffId({ principal: personas.admin, params: { depot }, headers: {} });
+
+    it('suggests one above the highest staff ID of the depot prefix', async () => {
+      rows = [
+        { id: 'a', name: 'A', role: 'LOADER', isActive: true, staffId: 'KDY-0427' },
+        { id: 'b', name: 'B', role: 'LOADER', isActive: false, staffId: 'KDY-0012' },
+        { id: 'c', name: 'C', role: 'LOADER', isActive: true, staffId: 'PLG-0900' },
+      ];
+      await expect(fn('kandy')).resolves.toEqual({ depot: 'KANDY', prefix: 'KDY', staffId: 'KDY-0428' });
+      await expect(fn('PELIYAGODA')).resolves.toMatchObject({ staffId: 'PLG-0901' });
+      rows = [];
+      await expect(fn('KANDY')).resolves.toMatchObject({ staffId: 'KDY-0001' });
+      await expect(fn('NOWHERE')).rejects.toMatchObject({ status: 400 });
+    });
   });
 
   it('Me delegates with the caller principal', async () => {
@@ -310,6 +440,30 @@ describe('AuthService', () => {
       when(keycloak.createUser(anything())).thenResolve('kc-9');
       await service.createIdentity({ email: 'r@x.lk', name: 'Ruwan', role: 'DRIVER', depot: 'KANDY', vehicleId: 'VEH057' });
       expect(capture(keycloak.createUser).last()[0].attributes).toEqual({ depot: ['KANDY'], vehicle_id: ['VEH057'] });
+    });
+
+    it('passes the staff ID of a loader as the staff_id attribute (the Dock sign-in looks the loader up by it)', async () => {
+      when(keycloak.configured).thenReturn(true);
+      when(keycloak.createUser(anything())).thenResolve('kc-10');
+      await service.createIdentity({ email: 'k@x.lk', name: 'Kasun', role: 'LOADER', depot: 'KANDY', staffId: 'KDY-0428' });
+      expect(capture(keycloak.createUser).last()[0]).toMatchObject({ role: 'loader', attributes: { depot: ['KANDY'], staff_id: ['KDY-0428'] } });
+    });
+  });
+
+  describe('setDockPin', () => {
+    it('sets the PIN in Keycloak and answers without it', async () => {
+      when(keycloak.configured).thenReturn(true);
+      when(keycloak.setPin(anything(), anything())).thenResolve();
+      await expect(service.setDockPin('u-kasun', '2468')).resolves.toEqual({ pinSet: true });
+      verify(keycloak.setPin('u-kasun', '2468')).once();
+    });
+
+    it('503 without an identity admin API; identity errors pass through as 5xx', async () => {
+      when(keycloak.configured).thenReturn(false);
+      await expect(service.setDockPin('u-kasun', '2468')).rejects.toMatchObject({ status: 503 });
+      when(keycloak.configured).thenReturn(true);
+      when(keycloak.setPin(anything(), anything())).thenReject(new Error('boom'));
+      await expect(service.setDockPin('u-kasun', '2468')).rejects.toMatchObject({ status: 502 });
     });
   });
 
@@ -546,7 +700,7 @@ describe('AuthService directory writes with Keycloak', () => {
       verify(keycloak.setRealmRole(anything(), anything(), anything())).never();
       const [id, changes] = capture(keycloak.updateUser).last();
       expect(id).toBe('u-ruwan');
-      expect(changes).toEqual({ attributes: { depot: ['PELIYAGODA'], outlet_id: null, vehicle_id: null } });
+      expect(changes).toEqual({ attributes: { depot: ['PELIYAGODA'], outlet_id: null, vehicle_id: null, staff_id: null } });
       verify(keycloak.logoutUser('u-ruwan')).once();
       expect(tx.committed).toBe(true);
     });
@@ -555,7 +709,7 @@ describe('AuthService directory writes with Keycloak', () => {
       when(txUser.findFirst(anything())).thenResolve({ ...before, role: 'STORE_MANAGER', outletId: 'OUT106', vehicleId: null });
       await service.updateUser(where, { outletId: 'OUT108', isActive: false }, personas.admin);
       expect(capture(keycloak.updateUser).last()[1]).toEqual({
-        attributes: { depot: ['KANDY'], outlet_id: ['OUT108'], vehicle_id: null },
+        attributes: { depot: ['KANDY'], outlet_id: ['OUT108'], vehicle_id: null, staff_id: null },
         enabled: false,
       });
     });
@@ -579,7 +733,7 @@ describe('AuthService directory writes with Keycloak', () => {
       // Forward: loader; restore: driver again.
       verify(keycloak.setRealmRole('u-ruwan', 'loader', anything())).once();
       verify(keycloak.setRealmRole('u-ruwan', 'driver', anything())).once();
-      expect(capture(keycloak.updateUser).last()[1]).toEqual({ attributes: { depot: ['KANDY'], outlet_id: null, vehicle_id: ['VEH057'] } });
+      expect(capture(keycloak.updateUser).last()[1]).toEqual({ attributes: { depot: ['KANDY'], outlet_id: null, vehicle_id: ['VEH057'], staff_id: null } });
       verify(keycloak.logoutUser(anything())).never();
       expect(audits()[0]).toMatchObject({ action: 'Users.SyncAccess', outcome: 'FAILED', payload: { identityRestored: true, changed: ['role', 'depot'] } });
     });
@@ -620,6 +774,40 @@ describe('AuthService directory writes with Keycloak', () => {
     it('an audit sink failure does not mask the result', async () => {
       when(audit.record(anything())).thenReject(new Error('audit down'));
       await expect(service.updateUser(where, { role: 'LOADER' }, personas.admin)).resolves.toBe(1);
+    });
+
+    it('a new staff ID reaches the staff_id attribute', async () => {
+      when(txUser.findFirst(anything())).thenResolve({ ...before, role: 'LOADER', vehicleId: null, staffId: 'KDY-0427' });
+      await service.updateUser(where, { staffId: 'KDY-0430' }, personas.admin);
+      expect(capture(keycloak.updateUser).last()[1]).toEqual({ attributes: { depot: ['KANDY'], outlet_id: null, vehicle_id: null, staff_id: ['KDY-0430'] } });
+      verify(keycloak.logoutUser('u-ruwan')).once();
+    });
+
+    it('someone who stops being a loader loses the staff ID and the Dock PIN (audited)', async () => {
+      when(txUser.findFirst(anything())).thenResolve({ ...before, role: 'LOADER', vehicleId: null, staffId: 'KDY-0427' });
+      when(keycloak.removePin(anything())).thenResolve();
+      await service.updateUser(where, { role: 'DISPATCHER', staffId: null }, personas.admin);
+      verify(keycloak.removePin('u-ruwan')).once();
+      expect(capture(keycloak.updateUser).last()[1]).toMatchObject({ attributes: { staff_id: null } });
+      expect(audits()[0]).toMatchObject({ action: 'Users.SyncAccess', outcome: 'SUCCESS', payload: { pinRemoved: true } });
+    });
+
+    it('a PIN that cannot be removed does not undo the role change (logged, audited pinRemoved: false)', async () => {
+      when(txUser.findFirst(anything())).thenResolve({ ...before, role: 'LOADER', vehicleId: null, staffId: 'KDY-0427' });
+      when(keycloak.removePin(anything())).thenReject(new ODataError(502, 'BadGateway', 'x'));
+      await expect(service.updateUser(where, { role: 'DISPATCHER', staffId: null }, personas.admin)).resolves.toBe(1);
+      expect(tx.committed).toBe(true);
+      expect(audits()[0]).toMatchObject({ payload: { pinRemoved: false } });
+    });
+
+    it('other role changes leave PINs alone', async () => {
+      await service.updateUser(where, { role: 'LOADER' }, personas.admin);
+      verify(keycloak.removePin(anything())).never();
+    });
+
+    it('a staff ID taken in a race answers 409, not 500', async () => {
+      when(txUser.updateMany(anything())).thenReject(Object.assign(new Error('Unique constraint'), { code: 'P2002', meta: { target: ['staffId'] } }));
+      await expect(service.updateUser(where, { role: 'LOADER', staffId: 'KDY-0427' }, personas.admin)).rejects.toMatchObject({ status: 409, target: 'staffId' });
     });
   });
 });
@@ -1070,5 +1258,33 @@ describe('KeycloakAdminClient', () => {
     await expect(client.setEnabled('u1', false)).resolves.toBeUndefined();
     when(tokens.fetch(anything(), anything())).thenResolve(res(500));
     await expect(client.setEnabled('u1', false)).rejects.toMatchObject({ status: 502 });
+  });
+
+  it('setPin posts the PIN to the extension endpoint (lodestar-pin) and never puts it in an error', async () => {
+    const client = build();
+    when(tokens.fetch(anything(), anything())).thenResolve(res(204));
+    await expect(client.setPin('u 1', '2468')).resolves.toBeUndefined();
+    const [url, init] = capture(tokens.fetch).last();
+    expect(url).toBe('http://identity:8080/auth/admin/realms/lodestar/lodestar-pin/u%201');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(String(init.body))).toEqual({ pin: '2468' });
+    for (const [status, code] of [[400, 400], [404, 502], [403, 502], [500, 502]]) {
+      when(tokens.fetch(anything(), anything())).thenResolve(res(status));
+      const err = await client.setPin('u1', '2468').catch((e) => e);
+      expect(err).toMatchObject({ status: code });
+      expect(JSON.stringify({ m: err.message, t: err.target })).not.toContain('2468');
+    }
+  });
+
+  it('removePin deletes the PIN credential; a missing user counts as done', async () => {
+    const client = build();
+    when(tokens.fetch(anything(), anything())).thenResolve(res(204));
+    await client.removePin('u1');
+    expect(capture(tokens.fetch).last()[0]).toBe('http://identity:8080/auth/admin/realms/lodestar/lodestar-pin/u1');
+    expect(capture(tokens.fetch).last()[1].method).toBe('DELETE');
+    when(tokens.fetch(anything(), anything())).thenResolve(res(404));
+    await expect(client.removePin('u1')).resolves.toBeUndefined();
+    when(tokens.fetch(anything(), anything())).thenResolve(res(500));
+    await expect(client.removePin('u1')).rejects.toMatchObject({ status: 502 });
   });
 });

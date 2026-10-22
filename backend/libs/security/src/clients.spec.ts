@@ -281,6 +281,23 @@ describe('audit payloads', () => {
     expect(String(big.bodySha256)).toMatch(/^[0-9a-f]{64}$/);
     expect(auditPayload(undefined).body).toBeUndefined();
   });
+
+  it('never keeps a Dock PIN, not even as a reversible hash of the body', () => {
+    const { createHash } = jest.requireActual<typeof import('crypto')>('crypto');
+    const sha = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
+    const p = auditPayload({ pin: '2468' }, { method: 'POST' });
+    expect(p.body).toEqual({ pin: '[redacted]' });
+    expect(p.bodyRedacted).toBe(true);
+    expect(JSON.stringify(p)).not.toContain('2468');
+    // Trying all 10 000 PINs against the hash finds nothing: it covers the redacted body.
+    expect(p.bodySha256).toBe(sha({ pin: '[redacted]' }));
+    expect(p.bodySha256).not.toBe(sha({ pin: '2468' }));
+    expect(redact({ dockPin: '1234', shipping: 'x', spin: 1 })).toEqual({ dockPin: '[redacted]', shipping: 'x', spin: 1 });
+    // Bulky fields are dropped but keep the full-body hash (ADM-14 uploads are identified by it).
+    const csv = auditPayload({ csv: 'a,b\n1,2' });
+    expect(csv.bodySha256).toBe(sha({ csv: 'a,b\n1,2' }));
+    expect(csv.bodyRedacted).toBeUndefined();
+  });
 });
 
 describe('AuditInterceptor', () => {

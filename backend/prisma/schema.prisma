@@ -172,6 +172,7 @@ model User {
   outletId     String?
   outlet       Outlet?  @relation(fields: [outletId], references: [id])
   vehicleId    String? // driver's vehicle (fleet.Vehicle id); mirrored to the vehicle_id token claim
+  staffId      String?  @unique // loader's Dock sign-in ID (KDY-0427, LD-06); mirrored to the staff_id user attribute
   phone        String?
   refreshToken String?
   isActive     Boolean  @default(true)

@@ -1,6 +1,7 @@
 'use client';
 // ADM-03 People and roles, live. Markup and classes from the generated design (frontend/screens/adm-03-people-and-roles.tsx).
-// Data: Users (paged, role chips, $search on name and email) with their Devices for the status column. A row
+// Data: Users (paged, role chips, $search on name, email and staff ID) with their Devices for the status column; the
+// scope column names a driver's vehicle and a loader's staff ID under the depot. A row
 // opens the person in ADM-04; a person with an open device request (the design's locked row) opens that request
 // in ADM-05 instead. "Add person" opens an empty form.
 import { useState } from 'react';
@@ -29,6 +30,14 @@ function status(u: User): [string, string] {
   if (u.devices?.some(d => d.status === 'REVOKED')) return ['m-tag--bad', 'Device revoked'];
   if (u.devices?.some(d => d.status === 'PENDING')) return ['m-tag--warn', 'Request open'];
   return ['m-tag--ok', 'Active'];
+}
+
+/** Scope column: the outlet, or the depot with a driver's vehicle or a loader's staff ID under it. */
+function scope(u: User, depotName: (code: string) => string) {
+  if (u.outletId) return u.outletId;
+  const depot = u.depot ? depotName(u.depot) : 'All depots';
+  const detail = u.role === 'DRIVER' && u.vehicleId ? `Vehicle ${u.vehicleId}` : u.role === 'LOADER' && u.staffId ? `Staff ID ${u.staffId}` : null;
+  return detail ? <span className="dx-td2"><b>{depot}</b><span className="dx-mono">{detail}</span></span> : depot;
 }
 
 function ChipCount({ role }: { role: UserRole }) {
@@ -109,7 +118,7 @@ export default function LiveAdm03PeopleAndRoles() {
                     </span>
                   </span>
                   <span className="dx-td" data-label="Role" style={{ width: '190px' }}><span className="hstack" style={{ gap: '8px' }}><Ic n={info?.icon ?? 'user'} className="ic ic--sm" /><span className="dx-td2"><b>{info?.label ?? u.role}</b><span>{info?.face}</span></span></span></span>
-                  <span className="dx-td" data-label="Scope" style={{ width: '190px' }}>{u.outletId ?? (u.depot ? depotName(u.depot) : 'All depots')}</span>
+                  <span className="dx-td" data-label="Scope" style={{ width: '190px' }}>{scope(u, depotName)}</span>
                   <span className="dx-td" data-label="Sign-in method" style={{ width: '180px' }}><span className="t-2" style={{ color: 'var(--text-2)' }}>{SIGN_IN[u.role]}</span></span>
                   <span className="dx-td" data-label="Status" style={{ width: '130px' }}><span className={`m-tag ${cls}`}><span className="dot" />{label}</span></span>
                   <span className="dx-td" data-label="Last change" style={{ flex: '1', minWidth: '0' }}><span className="dx-mono">{u.updatedAt ? fmtDayTime(u.updatedAt) : '—'}</span></span>

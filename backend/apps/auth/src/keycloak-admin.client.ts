@@ -12,7 +12,8 @@ export interface NewIdentityUser {
 
 /**
  * Minimal Keycloak Admin REST client used by the auth service with its own
- * service account (svc-auth has realm-management view/manage/query-users).
+ * service account (svc-auth has realm-management view/manage/query-users;
+ * manage-users also opens the extension's lodestar-pin endpoint).
  *
  *   KEYCLOAK_ADMIN_URL  e.g. http://identity:8080/auth   (internal URL)
  *   KEYCLOAK_REALM      default lodestar
@@ -160,6 +161,27 @@ export class KeycloakAdminClient {
         .map((c) => ({ label: c.userLabel ?? null, createdAt: typeof c.createdDate === 'number' ? new Date(c.createdDate).toISOString() : null })),
       setupRequired: (rep.requiredActions ?? []).includes('CONFIGURE_TOTP'),
     };
+  }
+
+  /**
+   * Sets (replaces) a loader's Dock PIN through the Lodestar identity extension
+   * (POST /admin/realms/{realm}/lodestar-pin/{userId}, PinAdminResource): its own credential type, hashed by
+   * Keycloak, never the password. The PIN is only in the request body: never logged, never returned.
+   */
+  async setPin(userId: string, pin: string): Promise<void> {
+    const res = await this.call('POST', `/lodestar-pin/${encodeURIComponent(userId)}`, { pin });
+    if (res.ok) return;
+    if (res.status === 400) throw ODataError.badRequest('The identity provider refused the Dock PIN (4 digits)', 'pin');
+    if (res.status === 404) {
+      throw new ODataError(502, 'BadGateway', 'The identity provider has no Dock PIN endpoint or no such user (is the Lodestar identity image deployed?)');
+    }
+    throw new ODataError(502, 'BadGateway', `Could not set the Dock PIN (HTTP ${res.status})`);
+  }
+
+  /** Removes a user's Dock PIN (DELETE lodestar-pin/{userId}); a missing user counts as done. */
+  async removePin(userId: string): Promise<void> {
+    const res = await this.call('DELETE', `/lodestar-pin/${encodeURIComponent(userId)}`);
+    if (!res.ok && res.status !== 404) throw new ODataError(502, 'BadGateway', `Could not remove the Dock PIN (HTTP ${res.status})`);
   }
 
   async setEnabled(userId: string, enabled: boolean): Promise<void> {

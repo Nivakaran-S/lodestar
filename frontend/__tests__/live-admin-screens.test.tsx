@@ -167,8 +167,8 @@ describe('Admin sidebar', () => {
 
 describe('ADM-03 People and roles', () => {
   const people = [
-    user('u1', { name: 'Ruwan Bandara', devices: [{ id: 'D1', status: 'REVOKED' }] }),
-    user('u2', { name: 'Kasun J', role: 'LOADER', devices: [{ id: 'D2', status: 'PENDING' }] }),
+    user('u1', { name: 'Ruwan Bandara', vehicleId: 'VEH057', devices: [{ id: 'D1', status: 'REVOKED' }] }),
+    user('u2', { name: 'Kasun J', role: 'LOADER', staffId: 'KDY-0427', devices: [{ id: 'D2', status: 'PENDING' }] }),
     user('u3', { name: 'Fathima R', role: 'STORE_MANAGER', outletId: 'OUT106', depot: 'KANDY', devices: [] }),
     user('u4', { name: 'Old Account', role: 'DISPATCHER', isActive: false }),
   ];
@@ -187,6 +187,8 @@ describe('ADM-03 People and roles', () => {
     expect(row('u2')).toHaveTextContent('Request open');
     expect(row('u3')).toHaveTextContent('OUT106');
     expect(row('u3')).toHaveTextContent('Active');
+    expect(row('u1')).toHaveTextContent('Vehicle VEH057');
+    expect(row('u2')).toHaveTextContent('Staff ID KDY-0427');
     expect(row('u4')).toHaveTextContent('Disabled');
     expect(screen.getByText(/Showing/).textContent).toBe('Showing 4 of 5');
     expect(view.calls.find(c => c.path === 'Users' && c.query.$expand)!.query).toMatchObject({ $expand: 'devices($select=id,status)', $orderby: 'name', $top: '30', $count: 'true' });
@@ -256,6 +258,109 @@ describe('ADM-04 Add or edit person · validation', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('A person with this email exists');
     expect(posts(view.calls)[0]).toMatchObject({ path: 'Users', body: { name: 'Nilanthi P', email: 'nilanthi@example.test', role: 'DISPATCHER', outletId: null } });
     expect(router.push).not.toHaveBeenCalled();
+  });
+});
+
+describe('ADM-04 Add or edit person · driver vehicle, loader staff ID and Dock PIN', () => {
+  const shell = (children: React.ReactNode) => <ScreenShell board="P6" nav={nav({ L290: '/admin/adm-03-people-and-roles' })} live>{children}</ScreenShell>;
+  const base = (req: FakeRequest) => (
+    req.query.$top === '0' ? page([], 1)
+      : req.path === 'Vehicles' ? page([vehicle('VEH057', { depot: 'KANDY' }), vehicle('VEH058', { depot: 'KANDY', type: 'TRUCK' })])
+        : req.path === 'Users' && req.method === 'GET' ? page([user('u-ruwan', { name: 'Ruwan Bandara', vehicleId: 'VEH057' })])
+          : req.path.startsWith('Users/Lodestar.NextStaffId') ? { depot: 'KANDY', prefix: 'KDY', staffId: 'KDY-0428' }
+            : undefined);
+  const fill = async (name: string, email: string) => {
+    fireEvent.change(await screen.findByLabelText('Full name'), { target: { value: name } });
+    fireEvent.change(screen.getByLabelText('Work email'), { target: { value: email } });
+  };
+
+  it('a driver picks a vehicle of their depot; one another active driver has is shown taken and cannot be picked', async () => {
+    const view = renderLive(shell(<AddPerson />), {
+      ...admin,
+      handler: req => base(req) ?? (req.method === 'POST' && req.path === 'Users' ? { status: 201, body: { id: 'u-new', name: 'Amal Perera' } } : page([])),
+    });
+    await fill('Amal Perera', 'amal@example.test');
+    fireEvent.click(screen.getByRole('radio', { name: /Driver/ }));
+    expect(screen.getByLabelText('Vehicle')).toBeDisabled(); // no depot yet
+    fireEvent.click(await screen.findByRole('radio', { name: /KANDY/ }));
+    const taken = await screen.findByRole('option', { name: 'VEH057 · Van · driven by Ruwan Bandara' });
+    expect(taken).toBeDisabled();
+    expect(screen.getByRole('option', { name: 'VEH058 · Truck' })).not.toBeDisabled();
+    expect(view.calls.find(c => c.path === 'Vehicles' && c.query.$select)!.query.$filter).toBe("depot eq 'KANDY'");
+    expect(disabled(screen.getByTestId('save-person'))).toBe(true); // a driver needs a vehicle
+    fireEvent.change(screen.getByLabelText('Vehicle'), { target: { value: 'VEH058' } });
+    expect(disabled(screen.getByTestId('save-person'))).toBe(false);
+    fireEvent.click(screen.getByTestId('save-person'));
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith('/admin/adm-03-people-and-roles'));
+    expect(posts(view.calls)).toHaveLength(1);
+    expect(posts(view.calls)[0]).toMatchObject({ path: 'Users', body: { role: 'DRIVER', depot: 'KANDY', vehicleId: 'VEH058', staffId: null, outletId: null } });
+  });
+
+  it('a loader gets the next free staff ID and a Dock PIN, which goes to SetDockPin only (never the Users row)', async () => {
+    const view = renderLive(shell(<AddPerson />), {
+      ...admin,
+      handler: req => base(req) ?? (req.method === 'POST' && req.path === 'Users' ? { status: 201, body: { id: 'u-new', name: 'Nimal Silva' } }
+        : req.method === 'POST' ? { pinSet: true } : page([])),
+    });
+    await fill('Nimal Silva', 'nimal@example.test');
+    fireEvent.click(screen.getByRole('radio', { name: /Loader/ }));
+    fireEvent.click(await screen.findByRole('radio', { name: /KANDY/ }));
+    await waitFor(() => expect(screen.getByLabelText('Staff ID')).toHaveValue('KDY-0428'));
+    expect(view.calls.some(c => c.path === "Users/Lodestar.NextStaffId(depot='KANDY')")).toBe(true);
+    expect(disabled(screen.getByTestId('save-person'))).toBe(true); // no PIN yet
+    fireEvent.change(screen.getByLabelText('Dock PIN'), { target: { value: '24a6' } });
+    expect(screen.getByLabelText('Dock PIN')).toHaveValue('246');
+    expect(disabled(screen.getByTestId('save-person'))).toBe(true);
+    fireEvent.change(screen.getByLabelText('Dock PIN'), { target: { value: '2468' } });
+    expect(screen.getByLabelText('Dock PIN')).toHaveAttribute('type', 'password');
+    // The admin types their own ID instead: lower case is fine, a malformed one is not.
+    fireEvent.change(screen.getByLabelText('Staff ID'), { target: { value: 'kdy-12' } });
+    expect(disabled(screen.getByTestId('save-person'))).toBe(true);
+    fireEvent.change(screen.getByLabelText('Staff ID'), { target: { value: 'kdy-0500' } });
+    expect(disabled(screen.getByTestId('save-person'))).toBe(false);
+    fireEvent.click(screen.getByTestId('save-person'));
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith('/admin/adm-03-people-and-roles'));
+    const [create, pin] = posts(view.calls);
+    expect(create).toMatchObject({ path: 'Users', body: { role: 'LOADER', depot: 'KANDY', staffId: 'KDY-0500', vehicleId: null } });
+    expect(JSON.stringify(create.body)).not.toContain('2468');
+    expect(pin).toMatchObject({ path: "Users('u-new')/Lodestar.SetDockPin", body: { pin: '2468' } });
+  });
+
+  it('a refused PIN after the person was created is reported, not retried as a second create', async () => {
+    const view = renderLive(shell(<AddPerson />), {
+      ...admin,
+      handler: req => base(req) ?? (req.method === 'POST' && req.path === 'Users' ? { status: 201, body: { id: 'u-new', name: 'Nimal Silva' } }
+        : req.method === 'POST' ? err(503, 'The identity provider is not reachable', 'ServiceUnavailable') : page([])),
+    });
+    await fill('Nimal Silva', 'nimal@example.test');
+    fireEvent.click(screen.getByRole('radio', { name: /Loader/ }));
+    fireEvent.click(await screen.findByRole('radio', { name: /KANDY/ }));
+    await waitFor(() => expect(screen.getByLabelText('Staff ID')).toHaveValue('KDY-0428'));
+    fireEvent.change(screen.getByLabelText('Dock PIN'), { target: { value: '2468' } });
+    fireEvent.click(screen.getByTestId('save-person'));
+    expect(await screen.findByText(/Nimal Silva added, but the Dock PIN was not set: .*Reset PIN/)).toBeInTheDocument();
+    expect(posts(view.calls).filter(c => c.path === 'Users')).toHaveLength(1);
+  });
+
+  it('editing a loader: the staff ID is kept, Reset PIN sets a new PIN with SetDockPin', async () => {
+    window.sessionStorage.setItem('lodestar.focus.user', 'u-kasun');
+    const kasun = { id: 'u-kasun', email: 'k@example.test', name: 'Kasun J', role: 'LOADER', depot: 'KANDY', staffId: 'KDY-0427', isActive: true };
+    const view = renderLive(shell(<AddPerson />), {
+      ...admin,
+      handler: req => base(req) ?? (req.path === "Users('u-kasun')" && req.method === 'GET' ? { status: 200, body: kasun, headers: { ETag: 'W/"5"' } }
+        : req.method === 'POST' ? { pinSet: true } : req.method === 'PATCH' ? kasun : page([])),
+    });
+    expect(await screen.findByText('Edit Kasun J')).toBeInTheDocument();
+    expect(screen.getByLabelText('Staff ID')).toHaveValue('KDY-0427');
+    expect(screen.queryByLabelText('Dock PIN')).not.toBeInTheDocument();
+    expect(view.calls.some(c => c.path.startsWith('Users/Lodestar.NextStaffId'))).toBe(false);
+    expect(disabled(screen.getByTestId('reset-pin'))).toBe(true);
+    fireEvent.change(screen.getByLabelText('New Dock PIN'), { target: { value: '1357' } });
+    fireEvent.click(screen.getByTestId('reset-pin'));
+    expect(await screen.findByText('New Dock PIN set for Kasun J. Tell them in person.')).toBeInTheDocument();
+    expect(posts(view.calls)).toEqual([expect.objectContaining({ path: "Users('u-kasun')/Lodestar.SetDockPin", body: { pin: '1357' } })]);
+    expect(screen.getByLabelText('New Dock PIN')).toHaveValue('');
+    expect(view.calls.some(c => c.method === 'PATCH')).toBe(false);
   });
 });
 

@@ -1,8 +1,11 @@
 'use client';
 // ADM-04 Add or edit person, live. Markup and classes from the generated design (frontend/screens/adm-04-add-or-edit-person.tsx).
-// Add: POST /Users {email, name, role, depot?, outletId?, phone?} (auth creates the Keycloak identity).
-// Edit: PATCH /Users('…') with If-Match (the ETag read with the person) {name, role, depot, outletId, phone,
-// isActive}; disabling a person disables their sign-in. Outlets come from /Outlets for the store scope.
+// Add: POST /Users {email, name, role, depot?, outletId?, vehicleId?, staffId?, phone?} (auth creates the Keycloak
+// identity); a loader's Dock PIN follows with POST Users('…')/Lodestar.SetDockPin {pin} (Keycloak keeps it, never
+// the directory). Edit: PATCH /Users('…') with If-Match (the ETag read with the person) {name, role, depot, outletId,
+// vehicleId, staffId, phone, isActive}; disabling a person disables their sign-in. "Reset PIN" calls SetDockPin.
+// Scope per role: a store manager picks an outlet (/Outlets), a driver a vehicle of the depot (/Vehicles; one active
+// driver per vehicle, the others' are shown as taken), a loader a staff ID (suggested by Users/Lodestar.NextStaffId).
 import { useState } from 'react';
 import { useScreenNav } from '@/components/ScreenShell';
 import Btn from '@/components/live/Btn';
@@ -11,7 +14,7 @@ import { Ic } from '@/components/live/icons';
 import { ROLE_INFO, ROLES } from '@/components/live/admin-data';
 import { ErrorBanner, Skeleton } from '@/components/live/states';
 import { useAction, useEntity, useQuery } from '@/lib/odata/hooks';
-import type { Depot, Outlet, User, UserRole } from '@/lib/odata/types';
+import type { Depot, Outlet, User, UserRole, Vehicle } from '@/lib/odata/types';
 import { useFocusId } from '@/lib/workday';
 import { useDepots } from '@/components/live/depots';
 
@@ -30,37 +33,98 @@ interface Form {
   phone: string;
   depot: Depot | '';
   outletId: string;
+  vehicleId: string;
+  staffId: string;
+  /** a new loader's Dock PIN: sent once to SetDockPin, never kept */
+  pin: string;
   isActive: boolean;
 }
 
-const EMPTY: Form = { role: 'STORE_MANAGER', name: '', email: '', phone: '', depot: '', outletId: '', isActive: true };
+const EMPTY: Form = { role: 'STORE_MANAGER', name: '', email: '', phone: '', depot: '', outletId: '', vehicleId: '', staffId: '', pin: '', isActive: true };
+
+/** Staff ID: depot prefix and 4 digits (KDY-0427), as the auth service checks it. */
+const STAFF_ID = /^[A-Z]{2,5}-\d{4}$/;
+const PIN = /^\d{4}$/;
+const digits = (v: string) => v.replace(/\D/g, '').slice(0, 4);
+const VEHICLE_TYPE: Record<Vehicle['type'], string> = { VAN: 'Van', TRUCK: 'Truck' };
 
 function PersonForm({ person }: { person: (User & { '@odata.etag'?: string }) | null }) {
   const { name: depotName, active: activeDepots, loading: depotsLoading } = useDepots();
   const nav = useScreenNav();
   const [form, setForm] = useState<Form>(
     person
-      ? { role: person.role, name: person.name, email: person.email, phone: person.phone ?? '', depot: person.depot ?? '', outletId: person.outletId ?? '', isActive: person.isActive }
+      ? {
+        role: person.role, name: person.name, email: person.email, phone: person.phone ?? '', depot: person.depot ?? '', outletId: person.outletId ?? '',
+        vehicleId: person.vehicleId ?? '', staffId: person.staffId ?? '', pin: '', isActive: person.isActive,
+      }
       : EMPTY,
   );
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm(f => ({ ...f, [k]: v }));
+  // A vehicle belongs to one depot: another depot clears the choice.
+  const setDepot = (d: Depot) => setForm(f => ({ ...f, depot: d, vehicleId: f.depot === d ? f.vehicleId : '' }));
   // Depot choices from the registry (ADM-21): depots in service, plus the person's current one if since deactivated.
   const depotChoices = [...activeDepots.map(d => d.code), ...(form.depot && !activeDepots.some(d => d.code === form.depot) ? [form.depot] : [])];
   const outlets = useQuery<Outlet[]>('adm-outlets', c => c.all<Outlet>('Outlets', { select: 'id,name,district,depot', orderby: 'id' }));
   const outlet = outlets.data?.find(o => o.id === form.outletId);
   const needsOutlet = form.role === 'STORE_MANAGER';
-  const valid = form.name.trim() && (person || /\S+@\S+\.\S+/.test(form.email)) && (!needsOutlet || form.outletId);
+  const isDriver = form.role === 'DRIVER';
+  const isLoader = form.role === 'LOADER';
 
-  const save = useAction<void, User>(async c => {
+  // Driver: the vehicles of the chosen depot, and who already drives which (one active driver per vehicle).
+  const vehicles = useQuery<Vehicle[]>(isDriver && form.depot ? `adm-vehicles-${form.depot}` : null,
+    c => c.all<Vehicle>('Vehicles', { filter: `depot eq '${form.depot}'`, select: 'id,depot,type,tempClass,status', orderby: 'id' }));
+  const drivers = useQuery<User[]>(isDriver && form.depot ? `adm-drivers-${form.depot}` : null,
+    c => c.all<User>('Users', { filter: `role eq 'DRIVER' and isActive eq true and vehicleId ne null`, select: 'id,name,vehicleId' }));
+  const takenBy = (vehicleId: string) => drivers.data?.find(d => d.vehicleId === vehicleId && d.id !== person?.id);
+  const vehicleTaken = form.vehicleId ? takenBy(form.vehicleId) : undefined;
+
+  // Loader: a staff ID (the next free one of the depot until the admin types one) and, when they become a loader
+  // here, a Dock PIN. A loader already on file changes their PIN with "Reset PIN" instead.
+  const [staffTouched, setStaffTouched] = useState(Boolean(person?.staffId));
+  const suggestion = useQuery<{ staffId: string | null }>(isLoader && form.depot && !staffTouched ? `adm-next-staff-${form.depot}` : null,
+    c => c.fn<{ staffId: string | null }>('Users', null, 'NextStaffId', { depot: form.depot }));
+  const staffId = (staffTouched ? form.staffId : suggestion.data?.staffId ?? form.staffId).trim().toUpperCase();
+  const pinOnSave = isLoader && person?.role !== 'LOADER';
+
+  const valid = Boolean(form.name.trim() && (person || /\S+@\S+\.\S+/.test(form.email)) && (!needsOutlet || form.outletId)
+    && (!isDriver || (form.depot && form.vehicleId && !vehicleTaken))
+    && (!isLoader || (form.depot && STAFF_ID.test(staffId) && (!pinOnSave || PIN.test(form.pin)))));
+
+  const save = useAction<void, { user?: User; pinError?: string }>(async c => {
     const depot = needsOutlet ? outlet?.depot ?? (form.depot || null) : form.depot || null;
-    const common = { name: form.name.trim(), role: form.role, depot, outletId: needsOutlet ? form.outletId : null, phone: form.phone.trim() || null };
-    if (person) return c.update<User>('Users', person.id, { ...common, isActive: form.isActive }, person['@odata.etag']);
-    return c.create<User>('Users', { ...common, email: form.email.trim() });
+    const common = {
+      name: form.name.trim(), role: form.role, depot, outletId: needsOutlet ? form.outletId : null,
+      vehicleId: isDriver ? form.vehicleId || null : null, staffId: isLoader ? staffId : null, phone: form.phone.trim() || null,
+    };
+    const user = person
+      ? await c.update<User>('Users', person.id, { ...common, isActive: form.isActive }, person['@odata.etag'])
+      : await c.create<User>('Users', { ...common, email: form.email.trim() });
+    if (!pinOnSave) return { user };
+    // The person exists now: a refused PIN is reported (Reset PIN), never retried as a second create.
+    try {
+      await c.action('Users', user?.id ?? person!.id, 'SetDockPin', { pin: form.pin });
+      return { user };
+    } catch (e) {
+      return { user, pinError: (e as Error).message };
+    }
   }, {
-    onSuccess: u => {
+    onSuccess: ({ user: u, pinError }) => {
       adminChanged();
-      nav.notify(person ? `${u?.name ?? form.name.trim()} saved.` : `${u?.name ?? form.name.trim()} added. They can sign in with ${ROLE_INFO[form.role].face}.`);
+      const who = u?.name ?? form.name.trim();
+      const done = person ? 'saved' : 'added';
+      if (pinError) nav.notify(`${who} ${done}, but the Dock PIN was not set: ${pinError} Open them and use Reset PIN.`);
+      else if (pinOnSave) nav.notify(`${who} ${done}. They sign in at the dock with staff ID ${staffId} and their PIN.`);
+      else nav.notify(person ? `${who} saved.` : `${who} added. They can sign in with ${ROLE_INFO[form.role].face}.`);
       nav.go('L290');
+    },
+  });
+
+  // Edit: a new Dock PIN for a loader on file (a forgotten PIN). Sent once, then cleared.
+  const [newPin, setNewPin] = useState('');
+  const resetPin = useAction<void, unknown>(c => c.action('Users', person!.id, 'SetDockPin', { pin: newPin }), {
+    onSuccess: () => {
+      setNewPin('');
+      nav.notify(`New Dock PIN set for ${person?.name}. Tell them in person.`);
     },
   });
 
@@ -119,7 +183,7 @@ function PersonForm({ person }: { person: (User & { '@odata.etag'?: string }) | 
               {depotsLoading && !depotChoices.length && <span className="t-3" style={{ fontSize: '13px' }}>Loading depots…</span>}
               {depotChoices.map(d => (
                 <div key={d} className={`adm-opt lv-click${form.depot === d ? ' is-on' : ''}`} style={{ flex: '1', padding: '10px 12px' }} role="radio" aria-checked={form.depot === d} tabIndex={0}
-                  onClick={e => { e.stopPropagation(); set('depot', d); }} onKeyDown={e => { if (e.key === 'Enter') set('depot', d); }}>
+                  onClick={e => { e.stopPropagation(); setDepot(d); }} onKeyDown={e => { if (e.key === 'Enter') setDepot(d); }}>
                   <span className={`dx-radio${form.depot === d ? ' is-on' : ''}`} />
                   <span className="dx-td2"><b>{depotName(d)}</b><span>{d}</span></span>
                 </div>
@@ -127,6 +191,65 @@ function PersonForm({ person }: { person: (User & { '@odata.etag'?: string }) | 
             </div>
           </div>
         ) : null}
+        {isDriver && (
+          <div className="dx-field">
+            <span className="dx-label">{"Vehicle"}</span>
+            <div className="dx-input dx-input--sm">
+              <Ic n="truck" />
+              <select className="lv-input" aria-label="Vehicle" value={form.vehicleId} disabled={!form.depot} onChange={e => set('vehicleId', e.target.value)}>
+                <option value="">{form.depot ? 'Choose a vehicle…' : 'Choose the depot first'}</option>
+                {form.vehicleId && vehicles.data && !vehicles.data.some(v => v.id === form.vehicleId) && <option value={form.vehicleId}>{form.vehicleId}</option>}
+                {(vehicles.data ?? []).map(v => {
+                  const other = takenBy(v.id);
+                  return <option key={v.id} value={v.id} disabled={Boolean(other)}>{v.id} · {VEHICLE_TYPE[v.type] ?? v.type}{other ? ` · driven by ${other.name}` : ''}</option>;
+                })}
+              </select>
+            </div>
+            <span className="t-3" style={{ fontSize: '13px' }} data-testid="vehicle-hint">
+              {vehicleTaken
+                ? `${form.vehicleId} is already assigned to ${vehicleTaken.name}. Give them another vehicle or disable them first.`
+                : 'Their phone runs this vehicle’s trips. One active driver per vehicle.'}
+            </span>
+          </div>
+        )}
+        {isLoader && (
+          <div className="hstack" style={{ gap: '14px', alignItems: 'flex-start' }}>
+            <div className="dx-field" style={{ flex: '1' }}>
+              <span className="dx-label">{"Staff ID"}</span>
+              <div className="dx-input dx-input--sm">
+                <input className="lv-input dx-mono" aria-label="Staff ID" placeholder="KDY-0427" value={staffId}
+                  onChange={e => { setStaffTouched(true); set('staffId', e.target.value.toUpperCase()); }} />
+              </div>
+              <span className="t-3" style={{ fontSize: '13px' }}>
+                {staffId && !STAFF_ID.test(staffId) ? 'Depot prefix and 4 digits, like KDY-0427' : !staffTouched && suggestion.data?.staffId ? 'Next free ID for this depot' : 'Typed at the dock to sign in'}
+              </span>
+            </div>
+            {pinOnSave ? (
+              <div className="dx-field" style={{ flex: '1' }}>
+                <span className="dx-label">{"Set Dock PIN"}</span>
+                <div className="dx-input dx-input--sm">
+                  <input className="lv-input dx-mono" aria-label="Dock PIN" type="password" inputMode="numeric" autoComplete="new-password" maxLength={4}
+                    placeholder="4 digits" value={form.pin} onChange={e => set('pin', digits(e.target.value))} />
+                </div>
+                <span className="t-3" style={{ fontSize: '13px' }}>{"Kept by the identity provider only. Tell them in person."}</span>
+              </div>
+            ) : person ? (
+              <div className="dx-field" style={{ flex: '1' }}>
+                <span className="dx-label">{"Dock PIN"}</span>
+                <div className="hstack" style={{ gap: '8px' }}>
+                  <div className="dx-input dx-input--sm" style={{ flex: '1' }}>
+                    <input className="lv-input dx-mono" aria-label="New Dock PIN" type="password" inputMode="numeric" autoComplete="new-password" maxLength={4}
+                      placeholder="New 4 digits" value={newPin} onChange={e => { resetPin.reset(); setNewPin(digits(e.target.value)); }} />
+                  </div>
+                  <Btn className="d-btn d-btn--ghost" testId="reset-pin" busy={resetPin.pending} disabled={!PIN.test(newPin)} onClick={() => void resetPin.run()}>
+                    <Ic n="lock" />{"Reset PIN"}
+                  </Btn>
+                </div>
+                <ErrorBanner error={resetPin.error} />
+              </div>
+            ) : null}
+          </div>
+        )}
         {person && (
           <div className="dx-field">
             <span className="dx-label">{"Access"}</span>

@@ -2,8 +2,16 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@lodestar/prisma';
 import { assertDepotCode, EntitySet, ODataAction, ODataEntitySet, ODataError, ODataFunction, OperationContext, WriteContext } from '@lodestar/odata';
 import { ALL_ROLES, DEVICE_ID_PATTERN, HUMAN_ROLES, isPrivileged, Roles } from '@lodestar/security';
-import { DeviceStatus } from '@prisma/client';
+import { DeviceStatus, Role } from '@prisma/client';
 import { AuthService, REALM_ROLE } from './auth.service';
+import { nextStaffId, normalizeStaffId, STAFF_ID_PATTERN, staffPrefix } from './staff-id';
+
+/** A Dock PIN set from ADM-04: exactly 4 digits (LD-06 "PIN · 4 digits"). */
+export const DOCK_PIN_PATTERN = /^\d{4}$/;
+
+/** The fields the per-role scope rules look at (ADM-04 validation). */
+type Scope = { role: string; depot: string | null; outletId: string | null; vehicleId: string | null; staffId: string | null; isActive: boolean };
+const SCOPE_FIELDS = ['role', 'depot', 'outletId', 'vehicleId', 'staffId', 'isActive'] as const;
 
 /** Users: the directory (ADM-03/04). Dispatchers see people of their depots. */
 @Injectable()
@@ -15,11 +23,11 @@ import { AuthService, REALM_ROLE } from './auth.service';
   update: [Roles.Admin],
   abac: { depot: (depots) => ({ depot: { in: depots } }) },
   navigation: ['outlet', 'devices'],
-  search: ['name', 'email'],
+  search: ['name', 'email', 'staffId'],
   // Personal settings are never part of the directory: only the user reads them (MyPreferences).
   hidden: ['preferences'],
-  insertable: ['id', 'email', 'name', 'role', 'depot', 'outletId', 'vehicleId', 'phone'],
-  updatable: ['name', 'role', 'depot', 'outletId', 'vehicleId', 'phone', 'isActive'],
+  insertable: ['id', 'email', 'name', 'role', 'depot', 'outletId', 'vehicleId', 'staffId', 'phone'],
+  updatable: ['name', 'role', 'depot', 'outletId', 'vehicleId', 'staffId', 'phone', 'isActive'],
   defaultOrderBy: 'name',
 })
 export class UsersSet extends ODataEntitySet {
@@ -30,14 +38,19 @@ export class UsersSet extends ODataEntitySet {
     super(prisma);
   }
 
-  /** Validation only: the identity is created in create(), next to the row, so it can be compensated. */
+  /**
+   * Validation only: the identity is created in create(), next to the row, so it can be compensated.
+   * Scope per role: a driver needs a depot and a vehicle of that depot (no other active driver on it), a loader a
+   * depot and a unique staff ID, a store manager an existing outlet. Only a driver has a vehicle, only a loader a
+   * staff ID. The loader's Dock PIN is set right after with SetDockPin (it is not a directory field).
+   */
   async beforeCreate(data: Record<string, any>) {
     for (const f of ['email', 'name', 'role']) if (!data[f]) throw ODataError.badRequest(`${f} is required`, f);
     // role is an enum already validated by the OData body coercion; guard the REALM_ROLE mapping too.
     if (!REALM_ROLE[data.role as keyof typeof REALM_ROLE]) throw ODataError.badRequest('Unknown role', 'role');
-    if (data.role === 'STORE_MANAGER' && !data.outletId) throw ODataError.badRequest('A store manager needs an outletId', 'outletId');
-    await this.checkVehicle(data.vehicleId);
+    if ('staffId' in data) data.staffId = normalizeStaffId(data.staffId);
     if (data.depot) data.depot = await assertDepotCode(this.prisma, data.depot);
+    await this.checkScope(this.scopeOf(data), new Set(SCOPE_FIELDS));
     return data;
   }
 
@@ -46,13 +59,83 @@ export class UsersSet extends ODataEntitySet {
     return this.auth.createUser(data, ctx.principal);
   }
 
+  /**
+   * The same scope rules on the person as it will be, checked for what this PATCH changes (a name edit on an
+   * older row without a vehicle or staff ID still saves). Leaving the driver or loader role clears the vehicle or
+   * staff ID unless the patch sets one (which is refused).
+   */
   async beforeUpdate(patch: Record<string, any>, current: any) {
-    const role = patch.role ?? current.role;
-    const outletId = 'outletId' in patch ? patch.outletId : current.outletId;
-    if (role === 'STORE_MANAGER' && !outletId) throw ODataError.badRequest('A store manager needs an outletId', 'outletId');
-    if ('vehicleId' in patch) await this.checkVehicle(patch.vehicleId);
+    if ('staffId' in patch) patch.staffId = normalizeStaffId(patch.staffId);
     if (patch.depot) patch.depot = await assertDepotCode(this.prisma, patch.depot);
+    const role = patch.role ?? current.role;
+    if (role !== Role.DRIVER && current.vehicleId && !('vehicleId' in patch)) patch.vehicleId = null;
+    if (role !== Role.LOADER && current.staffId && !('staffId' in patch)) patch.staffId = null;
+
+    const before = this.scopeOf(current);
+    const after = this.scopeOf({ ...current, ...patch });
+    const changed = new Set<string>(SCOPE_FIELDS.filter((f) => before[f] !== after[f]));
+    // Deactivating is always allowed; reactivating checks the person like a new one.
+    if (changed.has('isActive') && !after.isActive) changed.delete('isActive');
+    // A store manager is always bound to an outlet (the rule predates the others).
+    if (after.role === Role.STORE_MANAGER) changed.add('outletId');
+    if (changed.size) await this.checkScope(after, changed, current.id);
     return patch;
+  }
+
+  private scopeOf(u: Record<string, any>): Scope {
+    return {
+      role: u.role,
+      depot: u.depot ?? null,
+      outletId: u.outletId ?? null,
+      vehicleId: u.vehicleId ?? null,
+      staffId: u.staffId ?? null,
+      isActive: u.isActive ?? true,
+    };
+  }
+
+  /** The per-role scope rules; `changed` limits them to what the write changes (all of them on create). */
+  private async checkScope(s: Scope, changed: Set<string>, selfId?: string) {
+    const touched = (...f: string[]) => f.some((x) => changed.has(x));
+    if (s.vehicleId && s.role !== Role.DRIVER) throw ODataError.badRequest('Only a driver has a vehicle', 'vehicleId');
+    if (s.staffId && s.role !== Role.LOADER) throw ODataError.badRequest('Only a loader has a staff ID', 'staffId');
+
+    if (s.role === Role.STORE_MANAGER && touched('role', 'outletId')) {
+      if (!s.outletId) throw ODataError.badRequest('A store manager needs an outletId', 'outletId');
+      await this.checkOutlet(s.outletId);
+    }
+
+    if (s.role === Role.DRIVER && touched('role', 'depot', 'vehicleId', 'isActive')) {
+      // Format and existence first: the clearest error.
+      const vehicle = s.vehicleId ? await this.checkVehicle(s.vehicleId) : null;
+      if (!s.depot) throw ODataError.badRequest('A driver needs a depot', 'depot');
+      if (!vehicle) throw ODataError.badRequest('A driver needs a vehicle', 'vehicleId');
+      if (vehicle.depot && vehicle.depot !== s.depot) {
+        throw ODataError.badRequest(`Vehicle ${s.vehicleId} belongs to depot ${vehicle.depot}, not ${s.depot}`, 'vehicleId');
+      }
+      // One active driver per vehicle: the vehicle_id claim decides whose phone runs its trips.
+      if (s.isActive) {
+        const other = await this.prisma.user.findFirst({
+          where: { role: Role.DRIVER, isActive: true, vehicleId: s.vehicleId, ...(selfId ? { NOT: { id: selfId } } : {}) },
+          select: { id: true, name: true },
+        });
+        if (other) {
+          throw ODataError.conflict(`${s.vehicleId} is already assigned to ${other.name}. Give them another vehicle or disable them first.`, 'vehicleId');
+        }
+      }
+    }
+
+    if (s.role === Role.LOADER && touched('role', 'depot', 'staffId', 'isActive')) {
+      if (!s.depot) throw ODataError.badRequest('A loader needs a depot', 'depot');
+      if (!s.staffId) throw ODataError.badRequest('A loader needs a staff ID', 'staffId');
+    }
+    if (s.staffId && touched('staffId')) {
+      if (!STAFF_ID_PATTERN.test(s.staffId)) throw ODataError.badRequest('A staff ID is a depot prefix and 4 digits, like KDY-0427', 'staffId');
+      const other = await this.prisma.user.findFirst({
+        where: { staffId: s.staffId, ...(selfId ? { NOT: { id: selfId } } : {}) },
+        select: { id: true, name: true },
+      });
+      if (other) throw ODataError.conflict(`Staff ID ${s.staffId} is already taken by ${other.name}`, 'staffId');
+    }
   }
 
   /** Directory row and Keycloak (role, ABAC attributes, enabled, sessions) together, or neither. */
@@ -61,13 +144,56 @@ export class UsersSet extends ODataEntitySet {
     return this.auth.updateUser(where, data, ctx.principal);
   }
 
-  private async checkVehicle(vehicleId: unknown) {
-    if (vehicleId === undefined || vehicleId === null) return;
+  private async checkVehicle(vehicleId: unknown): Promise<{ id: string; depot?: string | null }> {
     if (typeof vehicleId !== 'string' || !/^[A-Za-z0-9-]{1,32}$/.test(vehicleId)) {
       throw ODataError.badRequest('vehicleId must be 1-32 letters, digits or dashes', 'vehicleId');
     }
-    const vehicle = await this.prisma.vehicle.findUnique({ where: { id: vehicleId }, select: { id: true } });
+    const vehicle = await this.prisma.vehicle.findUnique({ where: { id: vehicleId }, select: { id: true, depot: true } });
     if (!vehicle) throw ODataError.badRequest(`Vehicle ${vehicleId} does not exist`, 'vehicleId');
+    return vehicle;
+  }
+
+  private async checkOutlet(outletId: string) {
+    const outlet = await this.prisma.outlet.findUnique({ where: { id: outletId }, select: { id: true } });
+    if (!outlet) throw ODataError.badRequest(`Outlet ${outletId} does not exist`, 'outletId');
+  }
+
+  /**
+   * POST /odata/v4/Users('…')/Lodestar.SetDockPin {pin} — ADM-04 "Set Dock PIN" / "Reset PIN" for a loader
+   * (admins only). Keycloak stores it as its own credential type (the Lodestar extension hashes it); it is never
+   * logged or returned, and the audit entry carries it redacted.
+   */
+  @ODataAction({
+    name: 'SetDockPin',
+    binding: 'entity',
+    roles: [Roles.Admin],
+    params: { pin: { type: 'Edm.String', required: true } },
+    returns: 'Edm.Untyped',
+  })
+  setDockPin(ctx: OperationContext) {
+    const pin = ctx.params.pin;
+    if (typeof pin !== 'string' || !DOCK_PIN_PATTERN.test(pin)) throw ODataError.badRequest('A Dock PIN is 4 digits', 'pin');
+    if (ctx.entity.role !== Role.LOADER) throw ODataError.badRequest('Only a loader has a Dock PIN', 'pin');
+    if (!ctx.entity.isActive) throw ODataError.conflict('This person cannot sign in: enable them before setting a PIN');
+    return this.auth.setDockPin(ctx.entity.id, pin);
+  }
+
+  /** GET /odata/v4/Users/Lodestar.NextStaffId(depot='KANDY') — ADM-04's suggestion for a new loader: {staffId: 'KDY-0428'}. */
+  @ODataFunction({
+    name: 'NextStaffId',
+    binding: 'collection',
+    roles: [Roles.Admin],
+    params: { depot: { type: 'Edm.String', required: true } },
+    returns: 'Edm.Untyped',
+  })
+  async nextStaffId(ctx: OperationContext) {
+    const depot = await assertDepotCode(this.prisma, String(ctx.params.depot));
+    const prefix = staffPrefix(depot);
+    const taken: Array<{ staffId: string | null }> = await this.prisma.user.findMany({
+      where: { staffId: { startsWith: `${prefix}-` } },
+      select: { staffId: true },
+    });
+    return { depot, prefix, staffId: nextStaffId(prefix, taken.map((t) => t.staffId)) };
   }
 
   /** GET /odata/v4/Me() — session helper: claims plus directory row. */
