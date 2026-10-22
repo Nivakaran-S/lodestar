@@ -14,7 +14,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from .agent_config import agent_config
-from .api.schemas import AskRequest, ResumeRequest, StartRunRequest, StartRunResponse
+from .api.schemas import AskRequest, ResumeRequest, ReviseRequest, StartRunRequest, StartRunResponse
 from .auth import Principal, TokenVerifier, require_depot, require_roles
 from .checkpoint import create_checkpointing
 from .config import Settings, get_settings
@@ -168,6 +168,15 @@ def create_app(settings: Settings | None = None, runtime: AgentRuntime | None = 
         require_depot(principal, runtime_.depot_of(run_id))
         edits = [e.model_dump(exclude_none=True) for e in body.edits or []]
         return runtime_.resume(run_id, body.decision, edits, principal.sub, sorted(principal.roles), body.comment, body.planHash)
+
+    @app.post("/runs/{run_id}/revise", status_code=status.HTTP_201_CREATED)
+    def revise(run_id: str, body: ReviseRequest, request: Request, principal: Principal = Depends(require_roles("dispatcher"))):
+        """A change to an approved (live) plan: a new draft run (the next version) that needs a dispatcher's approval."""
+        runtime_ = rt(request)
+        require_depot(principal, runtime_.depot_of(run_id))
+        edits = [e.model_dump(exclude_none=True) for e in body.edits]
+        locked = {"orderIds": body.lockedOrderIds, "trips": [t.model_dump() for t in body.lockedTrips]}
+        return runtime_.revise_run(run_id, edits, principal.sub, version=body.version, locked=locked, comment=body.comment)
 
     @app.post("/ask")
     def ask(body: AskRequest, request: Request, principal: Principal = Depends(require_roles("dispatcher"))):

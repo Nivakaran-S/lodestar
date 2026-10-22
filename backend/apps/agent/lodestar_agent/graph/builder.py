@@ -1,5 +1,6 @@
 """The planning StateGraph (PLATFORM.md section 4; docs/architecture/PLANNER_AGENT.md). Plan -> Execute -> Verify:
 
+load_context -(revision of a live plan)-> seed_plan -> check_rules -> ...
 load_context -> classify_intent -(EXPLAIN_ONLY | CAPACITY_RISK)-> answer_only -> END
                                 -(PLAN_DAY | REPLAN)-> extract_preferences -> draft_plan
 draft_plan -> check_rules (+ independent validator) -(errors, <= max_redrafts repairs)-> draft_plan
@@ -180,6 +181,25 @@ def build_graph(
             "history": [{"node": "load_context", "at": _now(), "note": note}],
         }
 
+    def route_after_context(state: AgentState) -> str:
+        return "seed_plan" if state.get("seed") else "classify_intent"
+
+    def seed_plan(state: AgentState) -> dict[str, Any]:
+        """The next version of a live plan (DSP-12: any later change is a new draft that needs approval): the live
+        plan on today's data plus the edits, never a fresh draft. Started trips stay locked."""
+        ctx = ctx_of(state)
+        seed = state["seed"]
+        base = edit_rules.seed_from(ctx, seed["plan"], seed.get("version"))
+        plan, applied = edit_rules.apply_edits(ctx, base, seed.get("edits") or [], state.get("locked"))
+        note = f"v{plan['version']} from live v{base['version']} (run {seed.get('fromRunId')}): " + "; ".join(applied)
+        return {
+            "plan": plan,
+            "editMode": True,
+            "lastEdits": applied,
+            "redraftRequested": False,
+            "history": [{"node": "seed_plan", "at": _now(), "note": note}],
+        }
+
     def draft_plan(state: AgentState) -> dict[str, Any]:
         ctx = ctx_of(state)
         version = int((state.get("plan") or {}).get("version", 0)) + 1
@@ -244,6 +264,12 @@ def build_graph(
         did = [
             f"Read {summary['orders']} open orders, {summary['vehicles']} vehicles and {summary['outlets']} outlets for {state['depot']} through OData.",
         ]
+        if state.get("seed"):
+            locked = len((state.get("locked") or {}).get("orderIds") or [])
+            did.append(
+                f"Started from the live plan v{state['seed'].get('version') or 1} (run {state['seed'].get('fromRunId')})"
+                + (f"; {locked} order(s) on started trips stay where they are." if locked else ".")
+            )
         if summary["vehiclesDown"]:
             did.append(f"Left out vehicles not available today: {', '.join(summary['vehiclesDown'])}.")
         short = round(dem["m3"] - cap["m3"], 1)
@@ -354,7 +380,7 @@ def build_graph(
 
     def apply_edits(state: AgentState) -> dict[str, Any]:
         ctx = ctx_of(state)
-        plan, applied = edit_rules.apply_edits(ctx, state["plan"], state.get("pendingEdits") or [])
+        plan, applied = edit_rules.apply_edits(ctx, state["plan"], state.get("pendingEdits") or [], state.get("locked"))
         return {"plan": plan, "editMode": True, "lastEdits": applied, "pendingEdits": [], "approval": None, "history": [{"node": "apply_edits", "at": _now(), "note": "; ".join(applied)}]}
 
     # ---------------------------------------------------------------- wiring
@@ -363,6 +389,7 @@ def build_graph(
     g.add_node("classify_intent", classify_intent)
     g.add_node("extract_preferences", extract_preferences)
     g.add_node("answer_only", answer_only)
+    g.add_node("seed_plan", seed_plan)
     g.add_node("draft_plan", draft_plan)
     g.add_node("check_rules", check_rules)
     g.add_node("rank_deferrals", rank_deferrals)
@@ -372,7 +399,8 @@ def build_graph(
     g.add_node("commit", commit)
     g.add_node("apply_edits", apply_edits)
     g.add_edge(START, "load_context")
-    g.add_edge("load_context", "classify_intent")
+    g.add_conditional_edges("load_context", route_after_context, ["seed_plan", "classify_intent"])
+    g.add_edge("seed_plan", "check_rules")
     g.add_conditional_edges("classify_intent", route_after_intent, ["answer_only", "extract_preferences"])
     g.add_edge("answer_only", END)
     g.add_edge("extract_preferences", "draft_plan")

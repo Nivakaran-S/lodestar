@@ -109,3 +109,64 @@ def test_non_operating_day_is_refused_with_422(settings, make_runtime, verifier,
 def test_request_id_is_echoed(api, make_token):
     r = api.get("/runs/run-x", headers={**bearer(make_token()), "x-request-id": "abc123"})
     assert r.headers["x-request-id"] == "abc123"
+
+
+def approve(api, make_token) -> str:
+    run_id = start(api, make_token)
+    r = api.post(f"/runs/{run_id}/resume", json={"decision": "approve"}, headers=bearer(make_token()))
+    assert r.status_code == 200 and r.json()["status"] == "APPROVED"
+    return run_id
+
+
+def test_a_change_to_an_approved_plan_is_a_new_draft_of_the_next_version(api, make_token):
+    """DSP-12: any later change to a live plan is a new draft (the next version) that needs approval."""
+    run_id = approve(api, make_token)
+    h = bearer(make_token())
+    live = api.get(f"/runs/{run_id}", headers=h).json()
+    # the approved run itself takes no edits
+    r = api.post(f"/runs/{run_id}/resume", json={"decision": "edit", "edits": [{"op": "defer", "orderId": "O-5", "reason": "WINDOW"}]}, headers=h)
+    assert r.status_code == 409 and "not waiting for approval" in r.json()["error"]["message"]
+
+    r = api.post(f"/runs/{run_id}/revise", json={"edits": [{"op": "defer", "orderId": "O-5", "reason": "WINDOW"}], "version": 1, "comment": "store asked"}, headers=h)
+    assert r.status_code == 201, r.text
+    v2 = r.json()
+    assert v2["id"] != run_id and v2["status"] == "NEEDS_APPROVAL" and v2["version"] == 2 and v2["revisionOf"] == run_id
+    assert not any("O-5" in t["orderIds"] for t in v2["plan"]["trips"])
+    assert any(n["node"] == "seed_plan" for n in v2["history"]) and not any(n["node"] == "draft_plan" for n in v2["history"])
+    # the rest of the live plan is kept as it was
+    kept = {(t["vehicleId"], o) for t in live["plan"]["trips"] for o in t["orderIds"] if o != "O-5"}
+    assert kept <= {(t["vehicleId"], o) for t in v2["plan"]["trips"] for o in t["orderIds"]}
+    assert any("Started from the live plan v1" in d for d in v2["explanation"]["did"])
+    # the new draft goes through the normal approval
+    r = api.post(f"/runs/{v2['id']}/resume", json={"decision": "approve"}, headers=h)
+    assert r.status_code == 200 and r.json()["status"] == "APPROVED"
+
+
+def test_a_revision_leaves_started_trips_alone(api, make_token):
+    run_id = approve(api, make_token)
+    h = bearer(make_token())
+    live = api.get(f"/runs/{run_id}", headers=h).json()
+    trip = live["plan"]["trips"][0]
+    oid = trip["orderIds"][0]
+    locked = {"lockedOrderIds": trip["orderIds"], "lockedTrips": [{"vehicleId": trip["vehicleId"], "tripNo": trip["tripNo"]}]}
+    r = api.post(f"/runs/{run_id}/revise", json={"edits": [{"op": "defer", "orderId": oid, "reason": "WINDOW"}], **locked}, headers=h)
+    assert r.status_code == 422 and "already started" in r.json()["error"]["message"]
+    other = next(o for t in live["plan"]["trips"][1:] for o in t["orderIds"] if o not in trip["orderIds"])
+    r = api.post(f"/runs/{run_id}/revise", json={"edits": [{"op": "move", "orderId": other, "vehicleId": trip["vehicleId"], "tripNo": trip["tripNo"]}], **locked}, headers=h)
+    assert r.status_code == 422 and "already started" in r.json()["error"]["message"]
+    # the new draft keeps them locked for later edits too
+    free = next((o for o in live["plan"]["unassigned"] if o["orderId"] not in trip["orderIds"]), None) or {"orderId": "O-5"}
+    r = api.post(f"/runs/{run_id}/revise", json={"edits": [{"op": "defer", "orderId": free["orderId"], "reason": "WINDOW"}], **locked}, headers=h)
+    assert r.status_code == 201, r.text
+    v2 = r.json()
+    assert v2["locked"]["orderIds"] == trip["orderIds"]
+    r = api.post(f"/runs/{v2['id']}/resume", json={"decision": "edit", "edits": [{"op": "defer", "orderId": oid, "reason": "WINDOW"}]}, headers=h)
+    assert r.status_code == 422 and "already started" in r.json()["error"]["message"]
+
+
+def test_only_an_approved_run_is_revised(api, make_token):
+    run_id = start(api, make_token)
+    h = bearer(make_token())
+    r = api.post(f"/runs/{run_id}/revise", json={"edits": [{"op": "defer", "orderId": "O-5", "reason": "WINDOW"}]}, headers=h)
+    assert r.status_code == 409 and "edit this draft instead" in r.json()["error"]["message"]
+    assert api.post(f"/runs/{run_id}/revise", json={"edits": []}, headers=h).status_code == 422

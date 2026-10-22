@@ -1,13 +1,15 @@
 'use client';
 // Shared body of DSP-39 (Ask the planning agent) and DSP-40 (Agent proposal in draft): the draft board on the
 // left (design class ag-board), the ask panel on the right. Without a run under review it offers to start one.
+// A run already approved shows its live plan (the Plans version it became), not a draft: a change to it is applied as
+// the next version's draft (AskAgent), and the header's primary action is no longer reviewing the draft's deferrals.
 import { useRouter } from 'next/navigation';
 import Btn from './Btn';
 import AskAgent from './AskAgent';
 import { idleSummary, Lane, tripTwoHead, useBoardCards } from './board';
 import { PlanSide } from './chrome';
 import { Ic } from './icons';
-import { useReviewRun, usePlanScope, useStartAgentRun } from './plan-data';
+import { useReviewRun, usePlanScope, useRunPlan, useStartAgentRun } from './plan-data';
 import { Empty, ErrorBanner, Skeleton } from './states';
 import { fmtNum, fmtRunDate, fmtTime } from '@/lib/format';
 import { useDepots } from './depots';
@@ -22,9 +24,17 @@ export default function AgentBoardScreen({ name, mode }: { name: string; mode: '
   const detail = run.data?.detail ?? null;
   const board = useBoardCards({ draft: detail, tripsFilter: scope.tripsFilter, ordersFilter: scope.ordersFilter, active: scope.active });
   const deferrals = detail?.deferrals ?? [];
-  const version = detail?.plan?.version ?? detail?.version;
+  const runPlan = useRunPlan(run.data);
+  const approved = run.data?.status === 'APPROVED';
+  // an approved run is the plan it became (PLK-…-v1), whose version can differ from the agent's draft count
+  const version = (approved ? runPlan.version : undefined) ?? detail?.plan?.version ?? detail?.version;
   const depot = run.data?.depot ?? scope.depot ?? scope.active[0];
   const waiting = run.data?.status === 'NEEDS_APPROVAL';
+  const state = !run.data ? 'no draft'
+    : waiting ? 'waiting for your approval'
+      : approved ? (runPlan.live ? 'approved · live' : `approved · ${String(runPlan.status ?? 'replaced').toLowerCase()}`)
+        : run.data.status.toLowerCase().replace('_', ' ');
+  const kind = approved ? 'Plan' : 'Draft';
   const firstDepart = board.cards.map(c => c.departs).filter(Boolean).sort((a, b) => String(a).localeCompare(String(b)))[0];
 
   return (
@@ -35,14 +45,15 @@ export default function AgentBoardScreen({ name, mode }: { name: string; mode: '
           <div className="d-head">
             <div className="d-head__txt">
               <div className="d-eyebrow">
-                {"Draft by planning agent "}<span className="m-sep" />{version ? ` v${version} ` : ' '}<span className="m-sep" />
-                <span className={`m-tag ${waiting ? 'm-tag--warn' : 'm-tag--ok'}`}><span className="dot" />{run.data ? (waiting ? 'waiting for your approval' : run.data.status.toLowerCase().replace('_', ' ')) : 'no draft'}</span>
+                {`${kind} by planning agent `}<span className="m-sep" />{version ? ` v${version} ` : ' '}<span className="m-sep" />
+                <span className={`m-tag ${waiting ? 'm-tag--warn' : 'm-tag--ok'}`} data-testid="run-state"><span className="dot" />{state}</span>
               </div>
               <div className="d-h1">Plan for {scope.runDate ? fmtRunDate(scope.runDate) : '…'}</div>
             </div>
             <span className="d-btn ag-btn-on" data-lk={mode === 'proposal' ? 'L160' : undefined} aria-current={mode === 'proposal' ? undefined : 'page'} aria-disabled={mode === 'proposal' ? undefined : true}><Ic n="sparkle-plus" />{"Ask the agent"}</span>
             <Btn className={`d-btn${waiting ? '' : ' d-btn--disabled'}`} disabled={!waiting} onClick={() => openOverlay('/plan/dsp-12-approve-and-go-live')}><Ic n="lock" />{"Approve & go live"}</Btn>
-            <Btn className="d-btn d-btn--primary" onClick={() => router.push('/plan/dsp-03-deferral-decision')}><Ic n="history" />Review deferrals{deferrals.length ? ` (${deferrals.length})` : ''}</Btn>
+            {/* the draft's deferrals are decided before approval; once live they are on the plan board and the deferral log */}
+            <Btn className={`d-btn${waiting ? ' d-btn--primary' : ''}`} onClick={() => router.push('/plan/dsp-03-deferral-decision')}><Ic n="history" />Review deferrals{waiting && deferrals.length ? ` (${deferrals.length})` : ''}</Btn>
           </div>
           <ErrorBanner error={run.error ?? start.error} onRetry={run.refresh} />
           {!runId && (
@@ -61,7 +72,7 @@ export default function AgentBoardScreen({ name, mode }: { name: string; mode: '
                 {board.lanes.slice(0, 5).map(([id, cs]) => <Lane key={id} vehicleId={id} cards={cs} v={board.vehicles.get(id)} limits={board.limits} />)}
                 {deferrals.length > 0 && (
                   <div className="ag-defrow">
-                    <div className="ag-deflabel"><b>{"Deferrals"}</b><span>suggested · {fmtNum(deferrals.reduce((s, d) => s + d.m3, 0), 1)} m³</span></div>
+                    <div className="ag-deflabel"><b>{"Deferrals"}</b><span>{approved ? 'in the plan' : 'suggested'} · {fmtNum(deferrals.reduce((s, d) => s + d.m3, 0), 1)} m³</span></div>
                     {deferrals.slice(0, 3).map(d => (
                       <div key={d.orderId} className="ag-def ag-ref">
                         <div className="ag-def__main">
@@ -94,7 +105,8 @@ export default function AgentBoardScreen({ name, mode }: { name: string; mode: '
                 <div className="x-boardfoot"><Ic n="chevron-down" className="ic ic--sm" /><span>{idleSummary(board.idle)}</span></div>
               </div>
               {run.data ? (
-                <AskAgent run={run.data} mode={mode} subtitle={`Draft v${version ?? ''} · ${depotName(run.data.depot)} · ${scope.runDate ? fmtRunDate(scope.runDate) : ''}`} />
+                <AskAgent run={run.data} mode={mode} liveVersion={approved ? runPlan.version : undefined}
+                  subtitle={`${approved ? (runPlan.live ? 'Live plan' : 'Plan') : 'Draft'} v${version ?? ''} · ${depotName(run.data.depot)} · ${scope.runDate ? fmtRunDate(scope.runDate) : ''}`} />
               ) : (
                 <div className="ag-panel"><Skeleton rows={3} /></div>
               )}

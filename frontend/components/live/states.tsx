@@ -38,7 +38,7 @@ export function ErrorBanner({ error, onRetry, compact }: { error: ODataError | E
         <b>{e.status === 403 ? 'Not allowed' : e.status === 0 && e.code !== 'ClientError' ? 'Lodestar is not reachable' : e.code === 'ClientError' ? 'Check and try again' : 'Something went wrong'}</b>
         <span>
           {e.message}
-          {e.code && e.status ? <span className="lv-code">{e.code}</span> : null}
+          {e.code && e.status ? <>{' '}<span className="lv-code">{e.code}</span></> : null}
         </span>
       </div>
       {onRetry && (

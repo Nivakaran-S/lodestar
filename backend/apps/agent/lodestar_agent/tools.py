@@ -209,7 +209,7 @@ def build_ask_tools(ctx: PlanningContext, run: dict[str, Any]) -> tuple[list[Bas
         if trip_no:
             edit["tripNo"] = trip_no
         try:
-            new_plan, applied = apply_edits(ctx, plan, [edit])
+            new_plan, applied = apply_edits(ctx, plan, [edit], run.get("locked"))
         except EditError as exc:
             return json.dumps({"summary": f"I can't propose that: {exc}.", "proposal": False})
         checks, violations = check_rules(ctx, new_plan)

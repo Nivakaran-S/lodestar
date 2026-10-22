@@ -3,7 +3,7 @@ import { CapacityService } from './capacity.service';
 import { DeferralScoringService } from './deferral-scoring.service';
 import { EtaService } from './eta.service';
 import { NotifyClient } from '@lodestar/security';
-import { dayRange, PlanningService } from './planning.service';
+import { dayRange, PlanningService, touched } from './planning.service';
 import { executePlan, type ExecutionResult } from './plan-execution';
 
 // Plan execution (trips, stops, deferrals) is covered in plan-execution.spec.ts against an in-memory store.
@@ -43,6 +43,7 @@ describe('PlanningService', () => {
   let service: PlanningService;
   let notify: NotifyClient;
   let users: { findMany: jest.Mock };
+  let stops: { findMany: jest.Mock };
 
   beforeEach(() => {
     plan = mock<PlanDelegate>();
@@ -54,7 +55,8 @@ describe('PlanningService', () => {
     when(notify.publish(anything(), anything(), anything())).thenResolve(true);
     users = { findMany: jest.fn().mockResolvedValue([{ id: 'fathima', outletId: 'OUT106' }, { id: 'hawa-sm', outletId: 'OUT108' }]) };
     executed.mockReset().mockResolvedValue(EXECUTION);
-    const tx = { plan: instance(txPlan) };
+    stops = { findMany: jest.fn().mockResolvedValue([]) };
+    const tx = { plan: instance(txPlan), tripStop: stops };
     const prisma = { plan: instance(plan), user: users, $transaction: async (cb: (t: any) => any) => cb(tx) };
     service = new PlanningService(prisma as any, scoring, instance(capacity), instance(notify));
   });
@@ -115,6 +117,20 @@ describe('PlanningService', () => {
       expect(event).toBe('plan_published');
       expect(rooms).toEqual(['dispatcher:KANDY', 'loader:KANDY', 'store:OUT106', 'store:OUT108', 'driver:ruwan']);
       expect(payload).toMatchObject({ planId: open.id, trips: 1, planned: 1, deferred: 1 });
+    });
+
+    it('a later version replacing a live one tells only the stores and drivers it touches', async () => {
+      when(txPlan.findUnique(anything())).thenResolve(open);
+      when(txPlan.updateMany(anything())).thenResolve({ count: 1 });
+      when(txPlan.update(anything())).thenCall(async (a: any) => ({ id: a.where.id, ...a.data }));
+      // ORD1 was on the same trip at the same time: OUT106 and its driver are not touched; ORD2 is newly deferred
+      stops.findMany.mockResolvedValue([{ orderId: 'ORD1', tripId: 'TRP-VEH057-20260407-1', etaModel: new Date('2026-04-07T01:05:00.000Z'), trip: { driverId: 'ruwan' } }]);
+      await service.approvePlan(open.id, 'nilanthi');
+      expect(stops.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { trip: { depot: 'KANDY', runDate: open.runDate } } }));
+      const notices = capture(notify.notice);
+      expect(notices.first()[0]).toMatchObject({ recipientId: 'hawa-sm', type: 'ORDER_DEFERRED', outletId: 'OUT108' });
+      verify(notify.notice(anything())).once();
+      expect(capture(notify.publish).last()[1]).toEqual(['dispatcher:KANDY', 'loader:KANDY', 'store:OUT108']);
     });
 
     it('a plan that went live stays live when the store notices fail: the dock is told first', async () => {
@@ -189,6 +205,35 @@ describe('PlanningService', () => {
       const data = await service.approvePlan(open.id, 'nilanthi');
       expect(data).toMatchObject({ status: 'PUBLISHED' });
       expect(data).not.toHaveProperty('summary');
+    });
+  });
+
+  describe('revisionBasis (a change to an approved run)', () => {
+    const run = { id: 'run-1', depot: 'KANDY', runDate: new Date('2026-04-07T00:00:00.000Z') };
+    const make = (plan: any, waiting: any = null) => {
+      const prisma = {
+        plan: { findFirst: jest.fn().mockResolvedValue(plan) },
+        agentRun: { findFirst: jest.fn().mockResolvedValue(waiting) },
+        trip: { findMany: jest.fn().mockResolvedValue([{ vehicleId: 'VEH054', tripNumber: 1, stops: [{ orderId: 'ORD9' }, { orderId: 'ORD8' }] }]) },
+      };
+      return { prisma, svc: new PlanningService(prisma as any, scoring, instance(capacity), instance(notify)) };
+    };
+
+    it('starts from the live version and locks the started trips', async () => {
+      const { prisma, svc } = make({ id: 'PLK-2026-04-07-v1', version: 1, status: 'PUBLISHED' });
+      await expect(svc.revisionBasis(run)).resolves.toEqual({
+        planId: 'PLK-2026-04-07-v1', version: 1, lockedOrderIds: ['ORD9', 'ORD8'], lockedTrips: [{ vehicleId: 'VEH054', tripNo: 1 }],
+      });
+      expect(prisma.plan.findFirst.mock.calls[0][0].where).toEqual({ agentRunId: 'run-1' });
+      expect(prisma.trip.findMany.mock.calls[0][0].where).toEqual({ depot: 'KANDY', runDate: run.runDate, status: { in: ['LOADING', 'ENROUTE', 'COMPLETE'] } });
+    });
+
+    it('refuses a run without a plan, a plan that is no longer live, and a second revision while one waits', async () => {
+      await expect(make(null).svc.revisionBasis(run)).rejects.toMatchObject({ status: 409 });
+      await expect(make({ id: 'PLK-2026-04-07-v1', version: 1, status: 'SUPERSEDED' }).svc.revisionBasis(run)).rejects.toMatchObject({ status: 409, message: expect.stringContaining('SUPERSEDED') });
+      await expect(make({ id: 'PLK-2026-04-07-v1', version: 1, status: 'PUBLISHED' }, { id: 'run-2' }).svc.revisionBasis(run)).rejects.toMatchObject({
+        status: 409, message: expect.stringContaining('run-2'),
+      });
     });
   });
 
@@ -427,5 +472,31 @@ describe('EtaService.computeModelEta', () => {
     const svc = new EtaService({ serviceAllowance: instance(sa) } as any);
     await expect(svc.getServiceMin('FRESH', 'STREET')).resolves.toBe(15);
     await expect(svc.getServiceMin('FRESH', 'STREET')).resolves.toBe(25);
+  });
+});
+
+
+describe('touched (who a newly live version tells)', () => {
+  const x = (over: Partial<ExecutionResult> = {}): ExecutionResult => ({ ...EXECUTION, deferred: [], ...over });
+  const was = (orderId: string, tripId: string, eta: string | null, driverId: string | null = 'ruwan') => ({ orderId, tripId, etaModel: eta ? new Date(eta) : null, trip: { driverId } });
+
+  it('a first version touches everyone on it', () => {
+    expect(touched(x(), null)).toEqual({ planned: EXECUTION.planned, drivers: ['ruwan'] });
+  });
+
+  it('an order moved to another trip touches its store, the new driver and the old one', () => {
+    const moved = x({
+      trips: [{ id: 'TRP-VEH057-20260407-2', vehicleId: 'VEH057', driverId: 'ruwan', bay: 'K1', outletIds: ['OUT106'] }],
+      planned: [{ orderId: 'ORD1', outletId: 'OUT106', tripId: 'TRP-VEH057-20260407-2', etaModel: '2026-04-07T05:00:00.000Z' }],
+    });
+    const r = touched(moved, [was('ORD1', 'TRP-VEH042-20260407-1', '2026-04-07T01:05:00.000Z', 'kamal'), was('ORD3', 'TRP-VEH042-20260407-1', '2026-04-07T01:30:00.000Z', 'kamal')]);
+    expect(r.planned.map(p => p.orderId)).toEqual(['ORD1']);
+    expect(r.drivers.sort()).toEqual(['kamal', 'ruwan']);
+  });
+
+  it('a later arrival on the same trip touches the store; orders on started trips do not', () => {
+    const r = touched(x({ locked: ['ORD9'] }), [was('ORD1', 'TRP-VEH057-20260407-1', '2026-04-07T00:40:00.000Z'), was('ORD9', 'TRP-VEH054-20260407-1', null, 'nimal')]);
+    expect(r.planned.map(p => p.orderId)).toEqual(['ORD1']);
+    expect(r.drivers).toEqual([]);
   });
 });

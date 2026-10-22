@@ -89,7 +89,8 @@ export default function LiveDsp02PlanBoard() {
               >
                 <Ic n="lock" />{"Approve & go live"}
               </Btn>
-              <span className="d-btn d-btn--primary" data-lk="L3"><Ic n="history" />Review deferrals{deferrals.length ? ` (${deferrals.length})` : ''}</span>
+              {/* primary while there is something to approve; on a live plan approving is done and deferrals are a look-up */}
+              <span className={`d-btn${toApprove ? ' d-btn--primary' : ''}`} data-lk="L3"><Ic n="history" />Review deferrals{deferrals.length ? ` (${deferrals.length})` : ''}</span>
             </div>
             <ErrorBanner error={trips.error ?? fleet.error ?? run.error} onRetry={() => { void trips.refresh(); void fleet.refresh(); }} />
             {blocked && (

@@ -9,6 +9,8 @@
 // A plan or draft with rule violations needs a reason to override them: the note becomes required and is also sent
 // as overrideReason (the API refuses the approval without one, OverrideReasonRequired).
 // On success the design's link continues to the loaders' Lodestar Dock (the cross-device notice).
+// The figures (orders to approve, deferrals, protected outlets kept) come from what is approved (approvalFigures), not
+// from the day's deferral records, which also hold earlier runs' deferrals (yesterday's, of an order now protected).
 import { useState } from 'react';
 import { useScreenNav } from '@/components/ScreenShell';
 import Btn from '@/components/live/Btn';
@@ -17,16 +19,17 @@ import { PlanSide, useCount } from '@/components/live/chrome';
 import { Ic } from '@/components/live/icons';
 import { PLAN_EVENTS, useReviewRun, usePlanScope } from '@/components/live/plan-data';
 import { Empty, ErrorBanner, Skeleton } from '@/components/live/states';
+import { approvalFigures } from '@/components/live/approval';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { dayFilter, fmtClock, fmtDayTime, fmtRunDate, fmtTime, isoDay, title } from '@/lib/format';
 import { useAction, useQuery } from '@/lib/odata/hooks';
-import type { AgentRun, Plan } from '@/lib/odata/types';
+import type { AgentRun, AgentRunDetail, Order, Plan } from '@/lib/odata/types';
 import { depotFilter } from '@/lib/workday';
 import { useDepots } from '@/components/live/depots';
 
-function Check({ label, value, ok = true }: { label: string; value: string; ok?: boolean }) {
+function Check({ label, value, ok = true, testId }: { label: string; value: string; ok?: boolean; testId?: string }) {
   return (
-    <div className="x-ck" style={{ minHeight: '36px', fontSize: '14px' }}>
+    <div className="x-ck" style={{ minHeight: '36px', fontSize: '14px' }} data-testid={testId} data-ok={ok ? undefined : 'false'}>
       <span className="x-ck__i" style={ok ? undefined : { color: 'var(--st-exception-fg)' }}><Ic n={ok ? 'check' : 'alert'} /></span>
       <span className="x-ck__l" style={{ fontSize: '14px' }}>{label}</span>
       <span className="x-ck__v" style={{ fontSize: '13px' }}>{value}</span>
@@ -66,11 +69,15 @@ function Approve({ onClose, framed = false }: { onClose?: () => void; framed?: b
   const board = useBoardCards({ draft: draft?.detail ?? null, tripsFilter, ordersFilter, active });
   const total = useCount('Orders', ordersFilter ? `${ordersFilter} and status ne 'CANCELLED'` : null);
   const deferralFilter = runDate ? [dayFilter('order/runDate', runDate), "status in ('SUGGESTED','CONFIRMED')", depotFilter('order/outlet/depot', active)].filter(Boolean).join(' and ') : null;
-  const deferred = useCount('Deferrals', deferralFilter);
-  // protected outlets (deferred on the previous run) must never be deferred again
-  const protectedDeferred = useCount('Deferrals', deferralFilter ? `${deferralFilter} and order/deferredYesterday eq true` : null);
+  const recorded = useCount('Deferrals', deferralFilter);
+  // protected outlets (deferred on the previous run) must never be deferred again: the run date's protected orders
+  const protectedOrders = useQuery<string[]>(ordersFilter ? `protected:${ordersFilter}` : null, async c =>
+    (await c.all<Order>('Orders', { filter: `${ordersFilter} and deferredYesterday eq true and status ne 'CANCELLED'`, select: 'id' })).map(o => o.id),
+  { refreshOn: PLAN_EVENTS });
   const [note, setNote] = useState('');
   const [done, setDone] = useState<string | null>(null);
+  // what was approved stays on screen after it went live (the run then reads APPROVED, the plan PUBLISHED)
+  const [approved, setApproved] = useState<AgentRunDetail | null>(null);
   const violations = (draft ? draft.detail?.violations : pending?.summary?.violations) ?? [];
   const needsReason = violations.length > 0 && !note.trim();
   // A plan approval puts its trips into effect; one stored without trips (an older capacity-only auto-plan) cannot
@@ -87,6 +94,7 @@ function Approve({ onClose, framed = false }: { onClose?: () => void; framed?: b
       onSuccess: (r, p) => {
         void run.refresh();
         if (p.decision === 'approve') {
+          setApproved(draft?.detail ?? null);
           setDone(r.planId ? `Plan ${r.planId} is live` : 'The draft is approved');
           nav.go('L5');
         } else {
@@ -98,6 +106,7 @@ function Approve({ onClose, framed = false }: { onClose?: () => void; framed?: b
   );
   const approvePlan = useAction<Plan, Plan>((c, p) => c.action<Plan>('Plans', p.id, 'Approve', { note: note || undefined, overrideReason: violations.length ? note.trim() : undefined }), {
     onSuccess: p => {
+      setApproved((pending?.summary as AgentRunDetail | null | undefined) ?? null);
       void plans.refresh();
       setDone(`Plan ${p.id} is live`);
       nav.go('L5');
@@ -105,6 +114,11 @@ function Approve({ onClose, framed = false }: { onClose?: () => void; framed?: b
   });
 
   const target = draft ? 'draft' : pending ? 'plan' : null;
+  const figures = approvalFigures(draft?.detail ?? (pending?.summary as AgentRunDetail | null | undefined) ?? approved, protectedOrders.data ?? []);
+  const deferred = figures ? figures.deferred : recorded;
+  const deferredOutlets = figures ? figures.deferredOutlets : recorded;
+  const protectedDeferred = figures && protectedOrders.data ? figures.protectedDeferred : undefined;
+  const toApprove = figures?.planned ?? total;
   const version = draft ? draft.detail?.plan?.version ?? draft.detail?.version : pending?.version;
   const rules = draft?.detail?.ruleChecks ?? [];
   const failing = rules.filter(r => !r.passed);
@@ -126,7 +140,7 @@ function Approve({ onClose, framed = false }: { onClose?: () => void; framed?: b
               {target ? `Plan v${version ?? ''} · ${draft ? 'drafted by planning agent' : `${title(pending!.source)} plan`} · ${runDate ? fmtRunDate(runDate) : ''} run · ${depotLine}` : depotLine}
             </span>
             <span className="dx-h1xl" id="approve-title">
-              {done ?? (target ? `Approve ${total ?? '…'} orders and go live` : 'Nothing is waiting for approval')}
+              {done ?? (target ? `Approve ${toApprove ?? '…'} orders and go live` : 'Nothing is waiting for approval')}
             </span>
             <span className="dx-t14">
               Approver <b style={{ color: 'var(--text)' }}>{session?.name}</b> · {fmtDayTime(new Date())}
@@ -145,7 +159,7 @@ function Approve({ onClose, framed = false }: { onClose?: () => void; framed?: b
               <div className="hstack" style={{ gap: '14px', alignItems: 'stretch' }}>
                 <Who icon="box" title="Docks" sub="Loaders, Lodestar Dock" items={[`Load sheets for ${vehicles} vehicles`, `Loading order by departure${firstDepart ? `, first at ${fmtClock(firstDepart)}` : ''}`, 'Chilled lines marked for reefers only']} />
                 <Who icon="truck" title="Drivers" sub="Lodestar Run" items={[`${board.cards.length} trips download and work offline`, 'Stops in sequence with windows and access notes', 'Seal and reefer checks before departure']} />
-                <Who icon="store" title="Stores" sub="Lodestar Store" items={['Arrival window for every order', `${deferred ?? '…'} deferred outlets told why and the new date`]} />
+                <Who icon="store" title="Stores" sub="Lodestar Store" items={['Arrival window for every order', `${deferredOutlets ?? '…'} deferred outlet${deferredOutlets === 1 ? '' : 's'} told why and the new date`]} />
               </div>
               <div className="hstack" style={{ gap: '24px', alignItems: 'flex-start' }}>
                 <div className="vstack" style={{ gap: '0', flex: '1', minWidth: '0' }}>
@@ -160,7 +174,9 @@ function Approve({ onClose, framed = false }: { onClose?: () => void; framed?: b
                   )}
                   <Check label="Deferrals with a reason code" value={`${deferred ?? '…'}`} />
                   <Check label="Orders to review" value={review.length ? `${review.length} open` : 'none'} ok={!review.length} />
-                  <Check label="Protected outlets kept" value={protectedDeferred === undefined ? '…' : protectedDeferred ? `${protectedDeferred} deferred` : 'never deferred'} ok={!protectedDeferred} />
+                  <Check label="Protected outlets kept" testId="protected-check"
+                    value={!figures ? '…' : protectedDeferred === undefined ? '…' : protectedDeferred ? `${protectedDeferred} not on a trip` : figures.protectedKept ? `${figures.protectedKept} kept, never deferred` : 'never deferred'}
+                    ok={!protectedDeferred} />
                   {violations.length > 0 && (
                     <ul className="dx-t14" data-testid="violations" style={{ margin: '6px 0 0', paddingLeft: '18px' }}>
                       {violations.map((v, i) => {

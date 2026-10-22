@@ -291,6 +291,41 @@ describe('DSP-12 Approve and go live', () => {
     expect(view.calls.find(c => c.method === 'POST')).toMatchObject({ path: "AgentRuns('run-9')/Lodestar.Resume", body: { decision: 'approve', comment: 'Checked on the scale', overrideReason: 'Checked on the scale' } });
   });
 
+  it('counts what the draft plans and defers, and a protected order kept on a trip passes "Protected outlets kept"', async () => {
+    // the day's deferral records also hold yesterday's deferral of ORDT1, which rolled to today (protected) and is on a trip
+    window.sessionStorage.setItem('lodestar.agentRun', 'run-9');
+    const draft = {
+      ...run,
+      detail: {
+        ...run.detail,
+        plan: { version: 1, trips: [{ ...run.detail.plan.trips[0], orderIds: ['ORDT1', 'ORDT2'], stops: [{ seq: 1, orderId: 'ORDT1', outletId: 'OUTP1', protected: true }, { seq: 2, orderId: 'ORDT2', outletId: 'OUTT02' }] }] },
+        deferrals: [{ orderId: 'ORDT9', outletId: 'OUTT76', reason: 'CAP_REEFER', score: 12, suggested: true, m3: 1, rank: 1 }],
+      },
+    };
+    const view = renderLive(<ApproveAndGoLive />, {
+      handler: req => base(req) ?? (req.path === "AgentRuns('run-9')" ? draft
+        : req.path === 'Orders' && String(req.query.$filter).includes('deferredYesterday eq true') ? page([{ id: 'ORDT1' }]) : page([])),
+    });
+    expect(await screen.findByText('Approve 2 orders and go live')).toBeInTheDocument();
+    const check = await screen.findByTestId('protected-check');
+    await waitFor(() => expect(check).toHaveTextContent('1 kept, never deferred'));
+    expect(check).not.toHaveAttribute('data-ok');
+    expect(screen.getByText('1 deferred outlet told why and the new date')).toBeInTheDocument();
+    expect(view.calls.some(c => c.path === 'Deferrals' && String(c.query.$filter).includes('deferredYesterday'))).toBe(false);
+  });
+
+  it('flags a protected order the draft leaves off its trips', async () => {
+    window.sessionStorage.setItem('lodestar.agentRun', 'run-9');
+    const draft = { ...run, detail: { ...run.detail, deferrals: [{ orderId: 'ORDT7', outletId: 'OUTP7', reason: 'CAP_REEFER', score: 95, suggested: true, m3: 1, rank: 1 }] } };
+    renderLive(<ApproveAndGoLive />, {
+      handler: req => base(req) ?? (req.path === "AgentRuns('run-9')" ? draft
+        : req.path === 'Orders' && String(req.query.$filter).includes('deferredYesterday eq true') ? page([{ id: 'ORDT7' }]) : page([])),
+    });
+    const check = await screen.findByTestId('protected-check');
+    await waitFor(() => expect(check).toHaveTextContent('1 not on a trip'));
+    expect(check).toHaveAttribute('data-ok', 'false');
+  });
+
   it('with nothing waiting it cannot approve', async () => {
     renderLive(<ApproveAndGoLive />, { handler: req => base(req) ?? page([]) });
     expect(await screen.findByText('Nothing to approve')).toBeInTheDocument();

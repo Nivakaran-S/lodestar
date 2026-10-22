@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@lodestar/prisma';
 import { ODataError } from '@lodestar/odata';
 import {
-  OrderStatus, TempClass, DeferralReason, DeferralStatus, PlanSource, PlanStatus, Prisma, Role,
+  OrderStatus, TempClass, DeferralReason, DeferralStatus, PlanSource, PlanStatus, Prisma, Role, TripStatus,
 } from '@prisma/client';
 import { runDateRange, runDateValue } from '@lodestar/platform';
 import { NOTIFY, NotifyClient } from '@lodestar/security';
@@ -19,6 +19,50 @@ export const planPrefix = (depot: string) => PLAN_PREFIX[depot] ?? `P${depot}`;
 /** Publishing a plan writes every trip and order of the day in one transaction: on a remote database (Prisma
  * Postgres) that takes over a minute, so it may run up to just under the gateway's 150 s read timeout. */
 export const APPROVE_TX_TIMEOUT_MS = 140_000;
+
+/** Where an order was on the live version a new plan replaces. */
+export interface PreviousStop {
+  orderId: string;
+  tripId: string;
+  etaModel: Date | null;
+  trip?: { driverId: string | null } | null;
+}
+
+/**
+ * Who a newly live plan touches. A first version touches everyone on it. A later one (v2…) only the orders that
+ * changed trip or arrival, and the drivers of trips whose orders changed (on the new trip, and on the old one).
+ */
+export function touched(x: ExecutionResult, previous: PreviousStop[] | null) {
+  const everyDriver = [...new Set(x.trips.map(t => t.driverId).filter((d): d is string => Boolean(d)))];
+  if (!previous) return { planned: x.planned, drivers: everyDriver };
+  const before = new Map(previous.map(p => [p.orderId, p]));
+  const ordersOf = (pairs: Array<{ orderId: string; tripId: string }>) => {
+    const m = new Map<string, string[]>();
+    for (const p of pairs) m.set(p.tripId, [...(m.get(p.tripId) ?? []), p.orderId]);
+    return new Map([...m].map(([k, v]) => [k, v.sort().join(',')]));
+  };
+  const oldTrips = ordersOf(previous);
+  const newTrips = ordersOf(x.planned);
+  const planned = x.planned.filter(p => {
+    const was = before.get(p.orderId);
+    const eta = was?.etaModel ? new Date(was.etaModel).toISOString() : null;
+    return !was || was.tripId !== p.tripId || eta !== p.etaModel;
+  });
+  const changedTrips = new Set([...newTrips].filter(([id, orders]) => oldTrips.get(id) !== orders).map(([id]) => id));
+  const drivers = new Set(x.trips.filter(t => t.driverId && changedTrips.has(t.id)).map(t => t.driverId!));
+  // orders that left their old trip (moved, deferred, at risk): that trip's driver is told too
+  const moved = new Set([
+    ...x.planned.filter(p => before.get(p.orderId)?.tripId !== p.tripId).map(p => p.orderId),
+    ...x.deferred.map(d => d.orderId),
+    ...(x.atRisk ?? []).map(a => a.orderId),
+  ]);
+  const newTripIds = new Set(x.trips.map(t => t.id));
+  for (const p of previous) {
+    const gone = !newTripIds.has(p.tripId) && !x.locked.includes(p.orderId);
+    if (p.trip?.driverId && (moved.has(p.orderId) || gone)) drivers.add(p.trip.driverId);
+  }
+  return { planned, drivers: [...drivers] };
+}
 
 /** Plans a human may still approve or reject. */
 export const OPEN_PLAN_STATUSES: PlanStatus[] = [PlanStatus.DRAFT, PlanStatus.NEEDS_APPROVAL];
@@ -170,6 +214,36 @@ export class PlanningService {
     return { id: `${planPrefix(depot)}-${iso}-v${version}`, version, runDate: start };
   }
 
+  /**
+   * What a change to an approved planning-agent run starts from (DSP-12: any later change is a new draft that needs
+   * approval): the live plan version that run produced, and the orders and trips that have started (LOADING, ENROUTE,
+   * COMPLETE), which the new version leaves as they are. 409 when the run's plan is not the live one, or when a
+   * revision of it is already waiting for approval (apply the change there).
+   */
+  async revisionBasis(run: { id: string; depot: string; runDate: Date }) {
+    const plan = await this.prisma.plan.findFirst({ where: { agentRunId: run.id }, orderBy: { version: 'desc' }, select: { id: true, version: true, status: true } });
+    if (!plan) throw ODataError.conflict(`Run ${run.id} has no plan to change; draft the day with the planning agent`);
+    if (plan.status !== PlanStatus.PUBLISHED) {
+      throw ODataError.conflict(`Plan ${plan.id} is ${plan.status}, not live: change the live plan's draft instead`);
+    }
+    const waiting = await this.prisma.agentRun.findFirst({
+      where: { depot: run.depot, runDate: run.runDate, status: 'NEEDS_APPROVAL', detail: { path: ['revisionOf'], equals: run.id } },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    if (waiting) throw ODataError.conflict(`Draft ${waiting.id} for this day is already waiting for approval: apply the change to it`);
+    const started = await this.prisma.trip.findMany({
+      where: { depot: run.depot, runDate: run.runDate, status: { in: [TripStatus.LOADING, TripStatus.ENROUTE, TripStatus.COMPLETE] } },
+      select: { vehicleId: true, tripNumber: true, stops: { select: { orderId: true } } },
+    });
+    return {
+      planId: plan.id,
+      version: plan.version,
+      lockedOrderIds: started.flatMap(t => t.stops.map(s => s.orderId)),
+      lockedTrips: started.map(t => ({ vehicleId: t.vehicleId, tripNo: t.tripNumber })),
+    };
+  }
+
   /** There is no run to plan on a day the Calendar marks as non-operating (422 NonOperatingDay). */
   async assertOperatingDay(runDate: string | Date) {
     const { start, iso } = dayRange(runDate);
@@ -247,6 +321,7 @@ export class PlanningService {
    */
   async approvePlan(planId: string, approvedBy: string, note?: string, overrideReason?: string) {
     let execution: ExecutionResult | undefined;
+    let previous: PreviousStop[] | null = null;
     const published = await this.prisma.$transaction(async (tx) => {
       const plan = await tx.plan.findUnique({ where: { id: planId } });
       if (!plan) throw ODataError.notFound(`Plan ${planId} was not found`);
@@ -256,10 +331,17 @@ export class PlanningService {
       const violations = planViolations(plan.summary);
       const reason = overrideReason?.trim();
       if (violations.length && !reason) throw overrideReasonRequired(`Plan ${planId}`, violations);
-      await tx.plan.updateMany({
+      const superseded = await tx.plan.updateMany({
         where: { depot: plan.depot, runDate: plan.runDate, status: PlanStatus.PUBLISHED, id: { not: plan.id } },
         data: { status: PlanStatus.SUPERSEDED },
       });
+      // a later version (v2…) replaces a live one: remember where every order was, so only the people it touches are told
+      if (superseded.count) {
+        previous = await tx.tripStop.findMany({
+          where: { trip: { depot: plan.depot, runDate: plan.runDate } },
+          select: { orderId: true, tripId: true, etaModel: true, trip: { select: { driverId: true } } },
+        });
+      }
       execution = await executePlan(tx, plan);
       const now = new Date();
       // An auto-plan keeps its agent run: once the plan is live, that run is no longer waiting for approval.
@@ -289,19 +371,24 @@ export class PlanningService {
       });
     }, { timeout: APPROVE_TX_TIMEOUT_MS, maxWait: 10_000 });
     // the plan is live once the transaction commits: a failed notice must not turn that into an error
-    if (execution) await this.announce(execution).catch((e: Error) => this.logger.warn(`Plan ${planId} is live, but announcing it failed: ${e.message}`));
+    if (execution) await this.announce(execution, previous).catch((e: Error) => this.logger.warn(`Plan ${planId} is live, but announcing it failed: ${e.message}`));
     return published;
   }
 
-  /** After a plan is in effect: each affected store gets a notice, and the open screens are told to refresh. */
-  private async announce(x: ExecutionResult) {
-    const outlets = [...new Set([...x.planned.map(p => p.outletId), ...x.deferred.map(d => d.outletId), ...(x.atRisk ?? []).map(a => a.outletId)])];
+  /**
+   * After a plan is in effect: each affected store gets a notice, and the open screens are told to refresh. When the
+   * plan replaces a live version (`previous`: where the orders were), only the people it touches are told: stores
+   * whose orders changed trip or arrival, or were deferred or put at risk, and the drivers of the trips that changed.
+   */
+  private async announce(x: ExecutionResult, previous: PreviousStop[] | null = null) {
+    const { planned, drivers } = touched(x, previous);
+    const outlets = [...new Set([...planned.map(p => p.outletId), ...x.deferred.map(d => d.outletId), ...(x.atRisk ?? []).map(a => a.outletId)])];
     // the open screens first (the dock's re-plan alert, LD-14): the per-store notices below can be slow
     const rooms = [
       `dispatcher:${x.depot}`,
       `loader:${x.depot}`,
       ...outlets.map(o => `store:${o}`),
-      ...x.trips.filter(t => t.driverId).map(t => `driver:${t.driverId}`),
+      ...drivers.map(d => `driver:${d}`),
     ];
     await this.notify.publish('plan_published', rooms, {
       planId: x.planId, depot: x.depot, runDate: x.runDate,
@@ -312,12 +399,12 @@ export class PlanningService {
       select: { id: true, outletId: true },
     });
     for (const m of managers) {
-      const planned = x.planned.filter(p => p.outletId === m.outletId);
+      const mine = planned.filter(p => p.outletId === m.outletId);
       const deferred = x.deferred.filter(d => d.outletId === m.outletId);
-      if (planned.length) {
+      if (mine.length) {
         await this.notify.notice({
           recipientId: m.id, type: 'PLAN_PUBLISHED', outletId: m.outletId!,
-          payload: { planId: x.planId, runDate: x.runDate, orders: planned.map(p => ({ orderId: p.orderId, tripId: p.tripId, etaModel: p.etaModel })) },
+          payload: { planId: x.planId, runDate: x.runDate, orders: mine.map(p => ({ orderId: p.orderId, tripId: p.tripId, etaModel: p.etaModel })) },
         });
       }
       for (const d of deferred) {

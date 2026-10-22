@@ -80,6 +80,10 @@ class AgentState(TypedDict, total=False):
     # LLM audit: provider, model, fallback reason, tokens per call (no prompts, no keys)
     llmCalls: Annotated[list[dict[str, Any]], operator.add]
     llmDegraded: bool
+    # a revision of a live plan: {fromRunId, plan, version, edits}; orders and trips it must leave alone
+    seed: dict[str, Any]
+    revisionOf: str
+    locked: dict[str, Any]
     # human in the loop
     editMode: bool
     pendingEdits: list[dict[str, Any]]

@@ -328,6 +328,8 @@ export class AgentRunsSet extends ODataEntitySet {
     if (decision === 'edit' && !(ctx.params.edits as unknown[] | undefined)?.length) {
       throw ODataError.badRequest("decision 'edit' needs at least one edit", 'edits');
     }
+    // A change to an approved (live) plan is a new draft of the next version, not an edit of the run (DSP-12)
+    if (decision === 'edit' && String(ctx.entity.status).toUpperCase() === 'APPROVED') return this.revise(ctx);
     const overrideReason = typeof ctx.params.overrideReason === 'string' ? ctx.params.overrideReason.trim() : '';
     if (decision === 'approve' && !overrideReason) {
       const violations = planViolations(await this.agent.getRun(ctx.entity.id, this.authorization(ctx.headers)));
@@ -363,6 +365,24 @@ export class AgentRunsSet extends ODataEntitySet {
       });
     }
     return run;
+  }
+
+  /**
+   * Resume {decision: 'edit'} on an approved run: the edits become the next version of the live plan (v2…), a new
+   * agent run seeded from that plan plus the edits, with started trips locked. It waits for a dispatcher's approval
+   * like any draft (DSP-12, DSP-40). Returns the new run; the approved one stays as it was.
+   */
+  private async revise(ctx: OperationContext) {
+    const auth = this.authorization(ctx.headers);
+    const basis = await this.planning.revisionBasis(ctx.entity);
+    const comment = typeof ctx.params.comment === 'string' && ctx.params.comment.trim() ? ctx.params.comment.trim().slice(0, 500) : undefined;
+    const snapshot = await this.agent.reviseRun(ctx.entity.id, auth, {
+      edits: ctx.params.edits as unknown[], version: basis.version, lockedOrderIds: basis.lockedOrderIds, lockedTrips: basis.lockedTrips, ...(comment ? { comment } : {}),
+    });
+    if (!snapshot?.id) throw new ODataError(502, 'BadGateway', 'The planning agent returned no run id');
+    return this.prisma.agentRun.create({
+      data: { id: String(snapshot.id), depot: ctx.entity.depot, runDate: ctx.entity.runDate, requestedBy: ctx.principal.sub, ...fromSnapshot(snapshot) },
+    });
   }
 
   /**

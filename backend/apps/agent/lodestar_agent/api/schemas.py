@@ -50,6 +50,23 @@ class ResumeRequest(StrictModel):
     planHash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
+class LockedTrip(StrictModel):
+    vehicleId: str = Field(pattern=ID_PATTERN)
+    tripNo: int = Field(ge=1, le=9)
+
+
+class ReviseRequest(StrictModel):
+    """POST /runs/{id}/revise: the next version of an approved (live) plan, seeded from it plus the edits."""
+
+    edits: list[Edit] = Field(min_length=1, max_length=50)
+    comment: str | None = Field(default=None, max_length=500)
+    # the live plan's version (planning's Plans row): the new draft is version + 1
+    version: int | None = Field(default=None, ge=1, le=999)
+    # orders on started trips (LOADING, ENROUTE, COMPLETE) and those trips: they stay as they are
+    lockedOrderIds: list[str] = Field(default_factory=list, max_length=2000)
+    lockedTrips: list[LockedTrip] = Field(default_factory=list, max_length=500)
+
+
 class AskRequest(StrictModel):
     runId: str = Field(pattern=r"^[A-Za-z0-9_\-]{1,80}$")
     question: str = Field(min_length=1, max_length=1000)

@@ -28,6 +28,7 @@ export const AGENT_FETCH = Symbol('AGENT_FETCH');
  *   POST /runs {depot, runDate}                     → run view
  *   GET  /runs/{id}                                 → run view
  *   POST /runs/{id}/resume {decision, edits?, comment?}
+ *   POST /runs/{id}/revise {edits, version, lockedOrderIds, lockedTrips, comment?}  → a new draft run (next version)
  *   POST /ask {runId, question}
  *   GET  /config                                    → model, fallback, guardrails (read-only)
  */
@@ -52,6 +53,11 @@ export class AgentClient {
     if (edits !== undefined) body.edits = edits;
     if (comment !== undefined) body.comment = comment;
     return this.call<AgentRunSnapshot>('POST', `/runs/${encodeURIComponent(id)}/resume`, authorization, body);
+  }
+
+  /** A change to an approved run: the agent starts a new draft run seeded from its plan plus the edits. */
+  reviseRun(id: string, authorization: string, body: { edits: unknown[]; version: number; lockedOrderIds: string[]; lockedTrips: { vehicleId: string; tripNo: number }[]; comment?: string }) {
+    return this.call<AgentRunSnapshot>('POST', `/runs/${encodeURIComponent(id)}/revise`, authorization, body);
   }
 
   ask(runId: string, question: string, authorization: string) {

@@ -2,13 +2,16 @@
 // "Ask the planning agent" panel (DSP-39, DSP-40), from the design's ag-panel markup.
 // Questions go to AgentRuns('…')/Lodestar.Ask {question}; the agent answers from the run's snapshot and may
 // propose an edit. A proposal is applied to the draft with AgentRuns('…')/Lodestar.Resume {decision: 'edit',
-// edits} (a new draft version, still waiting for a human); it never goes live from here.
+// edits} (a new draft version, still waiting for a human); it never goes live from here. On a run already approved
+// (its plan is live) the same call makes planning start the next version (v2…) as a new run seeded from the live plan
+// plus the edits, with started trips locked: this tab then follows that new draft, which goes to DSP-12 for approval.
 // The conversation is kept per run for this tab (sessionStorage), so DSP-39 and DSP-40 share it.
 import { useCallback, useState, useSyncExternalStore } from 'react';
 import { useScreenNav } from '@/components/ScreenShell';
 import { fmtTime } from '@/lib/format';
 import { useAction } from '@/lib/odata/hooks';
 import { valueOf } from '@/lib/odata/client';
+import { useAgentRunId } from '@/lib/workday';
 import type { AgentAnswer, AgentRun } from '@/lib/odata/types';
 import Btn from './Btn';
 import { Ic } from './icons';
@@ -104,8 +107,14 @@ function Answer({ t }: { t: ChatTurn }) {
   );
 }
 
-export default function AskAgent({ run, mode, subtitle }: { run: AgentRun; mode: 'ask' | 'proposal'; subtitle: string }) {
+/** The draft version a proposal becomes: the live plan's next version on an approved run, else the agent's own. */
+export function proposalVersion(run: Pick<AgentRun, 'status'>, draftVersion: number | undefined, liveVersion: number | undefined) {
+  return run.status === 'APPROVED' && liveVersion ? liveVersion + 1 : draftVersion;
+}
+
+export default function AskAgent({ run, mode, subtitle, liveVersion }: { run: AgentRun; mode: 'ask' | 'proposal'; subtitle: string; liveVersion?: number }) {
   const nav = useScreenNav();
+  const [, setRunId] = useAgentRunId();
   const [turns, setTurns] = useAgentChat(run.id);
   const [text, setText] = useState('');
   const proposal = latestProposal(turns);
@@ -121,8 +130,15 @@ export default function AskAgent({ run, mode, subtitle }: { run: AgentRun; mode:
     },
   );
   const apply = useAction<void, AgentRun>(
-    c => c.action<AgentRun>('AgentRuns', run.id, 'Resume', { decision: 'edit', edits: proposal!.turn.a!.proposal!.edits, comment: proposal!.turn.q }),
-    { onSuccess: () => { setTurns(turns.map((t, i) => (i === proposal!.index ? { ...t, a: { ...t.a!, proposal: null } } : t))); nav.go('L159'); } },
+    c => c.action<AgentRun>('AgentRuns', run.id, 'Resume', { decision: 'edit', edits: proposal!.turn.a!.proposal!.edits, comment: proposal!.turn.q.slice(0, 500) }),
+    {
+      onSuccess: r => {
+        setTurns(turns.map((t, i) => (i === proposal!.index ? { ...t, a: { ...t.a!, proposal: null } } : t)));
+        // a change to a live plan comes back as a new draft run (the next version): follow it to the approval
+        if (r?.id && r.id !== run.id) setRunId(r.id);
+        nav.go('L159');
+      },
+    },
   );
   const dismiss = () => {
     if (proposal) setTurns(turns.map((t, i) => (i === proposal.index ? { ...t, a: { ...t.a!, proposal: null } } : t)));
@@ -156,7 +172,7 @@ export default function AskAgent({ run, mode, subtitle }: { run: AgentRun; mode:
             {mode === 'proposal' && t.a?.proposal && (
               <div className="ag-prop" data-testid="proposal">
                 <div className="ag-prop__h"><Ic n="sparkle-plus" />{"Proposal for the draft"}</div>
-                <div className="ag-prop__t">{t.a.proposal.edits.length} change{t.a.proposal.edits.length === 1 ? '' : 's'} to the draft</div>
+                <div className="ag-prop__t">{t.a.proposal.edits.length} change{t.a.proposal.edits.length === 1 ? '' : 's'} to the {run.status === 'APPROVED' ? 'live plan, as a new draft' : 'draft'}</div>
                 <div className="vstack" style={{ gap: '5px' }}>
                   {t.a.proposal.edits.map((e, j) => (
                     <div key={j} className="ag-mv">
@@ -186,7 +202,7 @@ export default function AskAgent({ run, mode, subtitle }: { run: AgentRun; mode:
                   <Btn className="d-btn d-btn--primary" testId="apply-proposal" busy={apply.pending} onClick={() => void apply.run()}><Ic n="check" />{"Apply to draft"}</Btn>
                   <Btn className="d-btn" testId="dismiss-proposal" onClick={dismiss}>{"Dismiss"}</Btn>
                   <span className="spacer" />
-                  <span className="m-pill m-pill--brand" style={{ height: '26px', padding: '0 10px', fontSize: '12px' }}>Draft v{t.a.proposal.draftVersion ?? '…'} · not live</span>
+                  <span className="m-pill m-pill--brand" style={{ height: '26px', padding: '0 10px', fontSize: '12px' }}>Draft v{proposalVersion(run, t.a.proposal.draftVersion, liveVersion) ?? '…'} · not live</span>
                 </div>
                 <div className="ag-audit"><Ic n="history" /><span>Logs <b>Proposed by planning agent · applied by you</b></span></div>
               </div>

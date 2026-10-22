@@ -44,6 +44,8 @@ VIEW_KEYS = (
     "llmCalls",
     "constraints",
     "redrafts",
+    "revisionOf",
+    "locked",
     "history",
 )
 
@@ -142,10 +144,43 @@ class AgentRuntime:
                 raise EditError("decision 'edit' needs at least one edit")
             plan = run["plan"]
             for e in edits:
-                validate_edit(ctx, plan, e)
+                validate_edit(ctx, plan, e, run.get("locked"))
         payload = {"decision": decision, "edits": edits or [], "by": principal_sub, "roles": roles, "comment": comment}
         log.info("run resumed", extra={"run_id": run_id, "decision": decision, "sub": principal_sub})
         self.graph.invoke(Command(resume=payload), self._config(run_id))
+        return self.get_run(run_id)
+
+    def revise_run(
+        self,
+        from_run_id: str,
+        edits: list[dict[str, Any]],
+        requested_by: str,
+        *,
+        version: int | None = None,
+        locked: dict[str, Any] | None = None,
+        comment: str | None = None,
+    ) -> dict[str, Any]:
+        """The next version of an approved (live) plan: a new run seeded from it plus the edits, on today's data,
+        waiting for a dispatcher like any draft (DSP-12: any later change is a new draft that needs approval).
+        ``version`` is the live plan's version (planning's Plans row); ``locked`` the orders and trips that started."""
+        ctx, src = self._context(from_run_id)
+        if src["status"] != "APPROVED" or not src.get("plan"):
+            raise RunConflict(f"run {from_run_id} is {src['status']}: only an approved plan is revised as a new draft; edit this draft instead")
+        if not edits:
+            raise EditError("a revision needs at least one edit")
+        for e in edits:
+            validate_edit(ctx, src["plan"], e, locked)
+        depot, run_date = src["depot"], src["runDate"]
+        run_id = f"run-{depot.lower()}-{run_date}-{uuid.uuid4().hex[:8]}"
+        seed = {"fromRunId": from_run_id, "plan": src["plan"], "version": int(version or src["plan"].get("version", 1)), "edits": edits}
+        initial: dict[str, Any] = {
+            "runId": run_id, "depot": depot, "runDate": run_date, "requestedBy": requested_by, "status": "DRAFTING", "raw": {},
+            "seed": seed, "revisionOf": from_run_id, "locked": {"orderIds": list((locked or {}).get("orderIds") or []), "trips": list((locked or {}).get("trips") or [])},
+        }
+        if comment:
+            seed["comment"] = comment
+        log.info("revision started", extra={"run_id": run_id, "from_run": from_run_id, "sub": requested_by})
+        self.graph.invoke(initial, self._config(run_id))
         return self.get_run(run_id)
 
     def ask(self, run_id: str, question: str) -> dict[str, Any]:

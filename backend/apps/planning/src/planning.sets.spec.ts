@@ -444,6 +444,31 @@ describe('AgentRunsSet', () => {
       expect(run.planId).toBe('PLK-X');
     });
 
+    describe('edit on an approved (live) run', () => {
+      const live = { ...entity, status: 'APPROVED', planId: 'PLK-2026-04-07-v1' };
+      const edits = [{ op: 'move', orderId: 'ORD1', vehicleId: 'VEH057', tripNo: 2 }];
+      const basis = { planId: 'PLK-2026-04-07-v1', version: 1, lockedOrderIds: ['ORD9'], lockedTrips: [{ vehicleId: 'VEH054', tripNo: 1 }] };
+
+      it('starts the next version as a new draft run seeded from the live plan, with started trips locked', async () => {
+        when(planning.revisionBasis(anything())).thenResolve(basis);
+        when(agent.reviseRun(anything(), anything(), anything())).thenResolve({ id: 'run-2', status: 'needs_approval', version: 2, revisionOf: 'run-1' });
+        const row = await set.resume({ principal: personas.nilanthi, params: { decision: 'edit', edits, comment: ' Move ORD1 to VEH057 trip 2 ' }, entity: live, headers });
+        expect(capture(agent.reviseRun).last()).toEqual(['run-1', AUTH, { edits, version: 1, lockedOrderIds: ['ORD9'], lockedTrips: [{ vehicleId: 'VEH054', tripNo: 1 }], comment: 'Move ORD1 to VEH057 trip 2' }]);
+        const args = capture(runs.create).last()[0];
+        expect(args.data).toMatchObject({ id: 'run-2', depot: 'KANDY', runDate: RUN_DATE, requestedBy: 'nilanthi', status: 'NEEDS_APPROVAL' });
+        expect(row.id).toBe('run-2');
+        verify(agent.resume(anything(), anything(), anything(), anything(), anything())).never();
+        verify(runs.update(anything())).never();
+        verify(planning.approvePlan(anything(), anything(), anything(), anything())).never();
+      });
+
+      it('passes a refusal (plan not live, a revision already waiting) through without asking the agent', async () => {
+        when(planning.revisionBasis(anything())).thenReject(ODataError.conflict('Plan PLK-2026-04-07-v1 is SUPERSEDED, not live'));
+        await expect(set.resume({ principal: personas.nilanthi, params: { decision: 'edit', edits }, entity: live, headers })).rejects.toMatchObject({ status: 409 });
+        verify(agent.reviseRun(anything(), anything(), anything())).never();
+      });
+    });
+
     it('does not publish when the agent did not approve, or on reject/edit', async () => {
       when(agent.resume(anything(), anything(), anything(), anything(), anything())).thenResolve({ id: 'run-1', status: 'NEEDS_APPROVAL' });
       await set.resume({ principal: personas.nilanthi, params: { decision: 'approve' }, entity, headers });

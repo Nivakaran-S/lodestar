@@ -15,10 +15,25 @@ class EditError(ValueError):
     """An edit that can never be applied (unknown ids, protected deferral, wrong vehicle class)."""
 
 
-def validate_edit(ctx: PlanningContext, plan: dict[str, Any], edit: dict[str, Any]) -> None:
+def check_locked(edit: dict[str, Any], locked: dict[str, Any] | None) -> None:
+    """A revision of a live plan leaves started trips (LOADING, ENROUTE, COMPLETE) alone: their orders don't move and
+    nothing is added to them. ``locked`` is {"orderIds": [...], "trips": [{"vehicleId", "tripNo"}]}, from planning."""
+    if not locked:
+        return
+    oid = edit.get("orderId")
+    if oid in set(locked.get("orderIds") or []):
+        raise EditError(f"{oid} is on a trip that has already started: it stays where it is")
+    if edit.get("op") == "move":
+        trip_no = int(edit.get("tripNo") or 1)
+        if any(t.get("vehicleId") == edit.get("vehicleId") and int(t.get("tripNo") or 0) == trip_no for t in locked.get("trips") or []):
+            raise EditError(f"{edit.get('vehicleId')} trip {trip_no} has already started: nothing can be added to it")
+
+
+def validate_edit(ctx: PlanningContext, plan: dict[str, Any], edit: dict[str, Any], locked: dict[str, Any] | None = None) -> None:
     oid = edit.get("orderId")
     if oid not in ctx.orders:
         raise EditError(f"Unknown order {oid}")
+    check_locked(edit, locked)
     op = edit.get("op")
     if op == "defer":
         if ctx.protected.get(oid):
@@ -55,13 +70,15 @@ def _move_breaks(ctx: PlanningContext, before: dict[str, Any], after: dict[str, 
     ]
 
 
-def apply_edits(ctx: PlanningContext, plan: dict[str, Any], edits: list[dict[str, Any]]) -> tuple[dict[str, Any], list[str]]:
+def apply_edits(
+    ctx: PlanningContext, plan: dict[str, Any], edits: list[dict[str, Any]], locked: dict[str, Any] | None = None
+) -> tuple[dict[str, Any], list[str]]:
     trips = [{"vehicleId": t["vehicleId"], "tripNo": t["tripNo"], "orderIds": list(t["orderIds"])} for t in plan["trips"]]
     unassigned = {u["orderId"]: u["reason"] for u in plan.get("unassigned", [])}
     applied: list[str] = []
     for edit in edits:
         current = schedule(ctx, {**plan, "trips": [dict(t) for t in trips if t["orderIds"]]})
-        validate_edit(ctx, current, edit)
+        validate_edit(ctx, current, edit, locked)
         oid = edit["orderId"]
         for t in trips:
             if oid in t["orderIds"]:
@@ -87,3 +104,13 @@ def apply_edits(ctx: PlanningContext, plan: dict[str, Any], edits: list[dict[str
         "unassigned": [{"orderId": o, "reason": r} for o, r in sorted(unassigned.items())],
     }
     return schedule(ctx, new_plan), applied
+
+
+def seed_from(ctx: PlanningContext, plan: dict[str, Any], version: int | None = None) -> dict[str, Any]:
+    """A live plan as the starting point of its next version, on today's data: orders that left the day since (deferred
+    and rolled on, delivered, cancelled) drop out; open orders it never saw are left for rank_deferrals to place."""
+    keep = set(ctx.orders)
+    trips = [{"vehicleId": t["vehicleId"], "tripNo": t["tripNo"], "orderIds": [o for o in t["orderIds"] if o in keep]} for t in plan.get("trips", [])]
+    unassigned = [u for u in plan.get("unassigned", []) if u.get("orderId") in keep]
+    base = int(version if version is not None else plan.get("version", 1))
+    return schedule(ctx, {**plan, "version": base, "trips": [t for t in trips if t["orderIds"]], "unassigned": unassigned})

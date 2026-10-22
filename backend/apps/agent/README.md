@@ -22,7 +22,7 @@ await_approval ── approve / reject → END
 | `explain` | The model writes the DSP-02 "What it did / What it checked" text from structured facts. |
 | `await_approval` | `interrupt()`; resumed with `Command(resume={decision, edits, by, roles})`. A resume without the `dispatcher` role or with a bad value is recorded and ignored (the run keeps waiting). |
 
-"Ask the planning agent" (DSP-39/40) is a second small graph (`agent ⇄ ToolNode`) over a snapshot of the run with lookup tools (`plan_summary`, `rule_checks`, `capacity`, `list_deferrals`, `explain_order`, `lookup_vehicle`, `lookup_outlet`) and `propose_edit`, which previews an edit as a new draft version. It never mutates the run. The dispatcher applies a proposal with `resume {decision: "edit", edits: proposal.edits}`.
+"Ask the planning agent" (DSP-39/40) is a second small graph (`agent ⇄ ToolNode`) over a snapshot of the run with lookup tools (`plan_summary`, `rule_checks`, `capacity`, `list_deferrals`, `explain_order`, `lookup_vehicle`, `lookup_outlet`) and `propose_edit`, which previews an edit as a new draft version. It never mutates the run. The dispatcher applies a proposal with `resume {decision: "edit", edits: proposal.edits}`; on an approved run planning sends it to `/runs/{id}/revise` instead, so a change to a live plan is always a new draft version.
 
 ## Model
 
@@ -41,6 +41,7 @@ All routes except health need `Authorization: Bearer <RS256 JWT>` (issuer `OIDC_
 | POST | `/runs` | dispatcher | `{depot, runDate, request?}` → `201 {id, status, version}` (runs to `NEEDS_APPROVAL`, or `ANSWERED` when the request only asks for an explanation or a capacity check) |
 | GET | `/runs/{id}` | dispatcher, admin | run view: `plan`, `ruleChecks`, `violations`, `validation` (rule codes), `simulation`, `deferrals` (with explanation, limiting constraint, consequence), `needsReview`, `explanation`, `decisions`, `approval`, `committed`, `hashes`, `llmCalls`, `llmDegraded`, `history`, `canPublish: false` |
 | POST | `/runs/{id}/resume` | dispatcher | `{decision: approve\|edit\|reject, edits?, comment?, planHash?}` (a `planHash` other than the current plan's is refused with 409; re-sending the approval of the committed plan with its hash returns the run unchanged); edits: `{op: "move", orderId, vehicleId, tripNo?}` or `{op: "defer", orderId, reason}` |
+| POST | `/runs/{id}/revise` | dispatcher | A change to an **approved** run: `{edits, version?, lockedOrderIds?, lockedTrips?, comment?}` starts a new run (201) seeded from its plan on fresh data plus the edits (`seed_plan`, no redraft), as version `version + 1`, waiting for approval like any draft. Edits touching `lockedOrderIds` or `lockedTrips` (started trips, sent by planning) are refused with 422, here and in later edits of the new run; a run that is not approved is refused with 409 |
 | POST | `/ask` | dispatcher | `{runId, question}` → `{answer, toolCalls, proposal}` |
 | GET | `/config` | dispatcher, admin | model (`AGENT_MODEL`, configured?, deployment, provider chain), fallback, max redrafts, hard rules, validator codes, limits, reason codes, what it reads, `llmMetrics` (calls per provider, failures, fallback rate, latency, tokens, cache hits, repairs, degraded runs); no secrets |
 | GET | `/health` | none | liveness |
