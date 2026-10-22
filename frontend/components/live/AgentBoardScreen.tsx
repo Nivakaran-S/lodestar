@@ -9,7 +9,7 @@ import AskAgent from './AskAgent';
 import { idleSummary, Lane, tripTwoHead, useBoardCards } from './board';
 import { PlanSide } from './chrome';
 import { Ic } from './icons';
-import { useReviewRun, usePlanScope, useRunPlan, useStartAgentRun } from './plan-data';
+import { useLiveRun, useReviewRun, usePlanScope, useRunPlan, useStartAgentRun } from './plan-data';
 import { Empty, ErrorBanner, Skeleton } from './states';
 import { fmtNum, fmtRunDate, fmtTime } from '@/lib/format';
 import { useDepots } from './depots';
@@ -19,7 +19,12 @@ export default function AgentBoardScreen({ name, mode }: { name: string; mode: '
   const { name: depotName } = useDepots();
   const router = useRouter();
   const scope = usePlanScope();
-  const { runId, run, setRunId } = useReviewRun();
+  const review = useReviewRun();
+  // no draft under review: the day's live plan, so a change to it can still be asked for (it becomes the next draft)
+  const live = useLiveRun(!review.runId && !review.loading);
+  const { setRunId } = review;
+  const runId = review.runId ?? live.runId;
+  const run = review.runId ? review.run : live.run;
   const start = useStartAgentRun(r => setRunId(r.id));
   const detail = run.data?.detail ?? null;
   const board = useBoardCards({ draft: detail, tripsFilter: scope.tripsFilter, ordersFilter: scope.ordersFilter, active: scope.active });

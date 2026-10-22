@@ -75,8 +75,11 @@ export default function ScreenLd02LoadSheet() {
           </View>
           <View style={s.v25}>
             <View style={s.v24}>
-              <Icon xml={X2} width={14} height={14} style={s.v1} />
-              <Text style={s.t43} numberOfLines={1}>{tempLabel(l.tempClass)}</Text>
+              {/* the snowflake marks chilled lines only; ambient gets the plain dot the tablet sheet uses */}
+              {l.tempClass === 'CHILLED'
+                ? <Icon xml={X2} width={14} height={14} style={s.v1} />
+                : <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#475569', marginHorizontal: 4 }} />}
+              <Text style={[s.t43, l.tempClass !== 'CHILLED' && { color: '#475569' }]} numberOfLines={1}>{tempLabel(l.tempClass)}</Text>
             </View>
             <View style={s.v22} />
             <Text style={s.t33}>{sf ? `short ${Math.max(0, sf.qtyOrdered - sf.qtyLoaded)} · ${sf.reason}` : `${n0(l.kg)} kg`}</Text>

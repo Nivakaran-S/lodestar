@@ -263,6 +263,28 @@ export function useReviewRun() {
   return { runId, run: useStored ? mine : found, setRunId, loading: !useStored && latest.loading };
 }
 
+/**
+ * The approved run whose plan is live for the run date and depot(s) in view, for screens that edit a live plan
+ * (DSP-39/40) when no draft is under review: useReviewRun drops approved runs unless this tab holds one.
+ */
+export function useLiveRun(enabled: boolean) {
+  const { runDate } = useRunDate('Plans');
+  const { active } = useDepot();
+  const filter = enabled && runDate
+    ? [dayFilter('runDate', runDate), depotFilter('depot', active), `status eq 'APPROVED'`].filter(Boolean).join(' and ')
+    : null;
+  const latest = useQuery<string | null>(filter ? `live-run:${filter}` : null, async c => {
+    const runs = (await c.list<AgentRun>('AgentRuns', { filter: filter!, select: 'id,planId', orderby: 'createdAt desc', top: 5 })).value;
+    for (const r of runs) {
+      if (!r.planId) continue;
+      const plan = (await c.list<Plan>('Plans', { filter: `id eq '${r.planId.replace(/'/g, "''")}'`, select: 'id,status', top: 1 })).value[0];
+      if (plan?.status === 'PUBLISHED') return r.id;
+    }
+    return null;
+  }, { refreshOn: PLAN_EVENTS });
+  return { runId: latest.data ?? null, run: useAgentRun(latest.data ?? null), loading: latest.loading };
+}
+
 /** The plan version an approved run became (Plans, by AgentRun.planId) and whether it is still the live one. */
 export function useRunPlan(run: AgentRun | null | undefined) {
   const planId = run?.status === 'APPROVED' ? run.planId ?? null : null;
