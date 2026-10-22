@@ -9,6 +9,7 @@ import { useClaims, useLoadSheet } from '@/model/hooks';
 import { loadGroups, ordinal, reeferOf, shortfallFor, tempLabel, useOpenRePlan, useRePlanAlert, useMarkLoading, useTicks, type LoadGroup } from '@/model/dock';
 import type { OrderLineItem } from '@/model/types';
 import { truckSvg } from '@/lodestar/truck';
+import { TruckDiagram } from '@/lodestar/truck-view';
 import { Frame, Grad, Icon, Scroll, Tap, openScreen, type ScreenNav, type GradSpec } from '@/lodestar/runtime';
 
 const nav: ScreenNav = {"links":{"L7":{"to":"ld-03-flag-shortfall","kind":"go"},"L64":{"to":"ld-03-flag-shortfall","kind":"go"},"L195":{"to":"ld-30-load-sheet-speaking","kind":"go"},"L196":{"to":"ld-28-voice-and-language","kind":"go"},"B":{"to":"ld-01-dock-queue","kind":"back"}}};
@@ -86,14 +87,14 @@ export default function ScreenLd02LoadSheet() {
             <Text style={s.t35}>{sf ? `${sf.qtyLoaded}/${l.qty}` : l.qty}</Text>
           </View>
           <View>
-            <Text style={s.t36}>{"units"}</Text>
+            <Text style={s.t36}>{l.qty === 1 ? "unit" : "units"}</Text>
           </View>
         </View>
       </>
     );
     if (isCurrent) {
       return (
-        <Tap key={l.id} lk="L7" style={s.v47} to={flagTo(l)}>
+        <Tap key={l.id} lk="L7" style={s.v47} to={flagTo(l)} label={`Flag a problem with ${l.name}`}>
           {info}
           <View style={s.v46}>
             <Icon xml={X4} width={22} height={22} style={s.v1} />
@@ -102,7 +103,7 @@ export default function ScreenLd02LoadSheet() {
       );
     }
     return (
-      <Tap key={l.id} style={[s.v44, i > 0 && x.border]} to={sf ? flagTo(l) : null} onPress={sf ? undefined : () => t.toggle(l.id)} testID={`line-row-${g.order}-${i}`}>
+      <Tap key={l.id} style={[s.v44, i > 0 && x.border]} to={sf ? flagTo(l) : null} onPress={sf ? undefined : () => t.toggle(l.id)} testID={`line-row-${g.order}-${i}`} label={sf ? `Flag a problem with ${l.name}` : `${ticked ? 'Untick' : 'Tick'} ${l.name}`}>
         {info}
         {sf ? (
           <View style={s.v46}>
@@ -136,7 +137,7 @@ export default function ScreenLd02LoadSheet() {
           <View style={s.v29}>
             <View style={s.v16}>
               <View style={s.v13}>
-                <Text style={s.t12}>{data ? String(done) : "—"}<Text style={s.t11}>{` of ${total} lines`}</Text></Text>
+                <Text style={s.t12}>{data ? String(done) : "—"}<Text style={s.t11}>{` of ${total} ${total === 1 ? 'line' : 'lines'}`}</Text></Text>
               </View>
               <View style={s.v15}>
                 <Text style={s.t14} numberOfLines={1}>{data ? `${total - done} to go${sheet.shortfalls.length ? ` · ${sheet.shortfalls.length} short` : ""}` : "—"}</Text>
@@ -148,7 +149,7 @@ export default function ScreenLd02LoadSheet() {
               </View>
             </View>
             <View style={s.v26}>
-              {truck ? <Icon xml={truck} width={302} height={96} style={s.v20} /> : null}
+              {truck ? <TruckDiagram xml={truck} style={s.v20} /> : null}
               <View style={s.v25}>
                 <Text style={s.t21}>{"Cab left, rear doors right"}</Text>
                 <View style={s.v22} />
@@ -220,7 +221,7 @@ export default function ScreenLd02LoadSheet() {
           })}
           {!l7Used ? (
             <View style={s.v48}>
-              <Tap lk="L7" style={s.v47} to={trip ? { to: "ld-03-flag-shortfall", params: { trip: trip.id } } : undefined}>
+              <Tap lk="L7" style={s.v47} to={trip ? { to: "ld-03-flag-shortfall", params: { trip: trip.id } } : undefined} label="Flag a problem with this load">
                 <View style={s.v45} />
                 <View style={s.v34}>
                   <View>

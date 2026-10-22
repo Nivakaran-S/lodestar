@@ -26,6 +26,9 @@ export default function ScreenLd07StartShift() {
   const [bay, setBay] = useMyBay();
   const next = nextToLoad(trips, bay);
   const toLoad = trips.filter(t => t.status === 'PLANNED' || t.status === 'LOADING');
+  // a vehicle can run more than one trip: count both ("11 trips · 9 vehicles"), never trips as vehicles
+  const vehiclesToLoad = new Set(toLoad.map(t => t.vehicleId)).size;
+  const toLoadText = toLoad.length === vehiclesToLoad ? `${plural(vehiclesToLoad, 'vehicle')} to load` : `${plural(toLoad.length, 'trip')} · ${plural(vehiclesToLoad, 'vehicle')} to load`;
   const departs = trips.map(t => t.departTime).filter((d): d is string => !!d).sort((a, b) => a.localeCompare(b));
   const span = departs.length ? `${hm(departs[0])}–${hm(departs[departs.length - 1])}` : '—';
   const tiles = trips.slice(0, 4);
@@ -71,7 +74,7 @@ export default function ScreenLd07StartShift() {
               <Text style={s.t18}>{span}</Text>
             </View>
             <View>
-              <Text style={s.t20}>{loading && !data ? 'Loading the bay queue…' : `${plural(toLoad.length, 'vehicle')} to load${next ? ' · first out ' : ''}`}{next ? <Text style={s.t19}>{`${next.vehicleId}${next.departTime ? ` at ${hm(next.departTime)}` : ''}`}</Text> : null}</Text>
+              <Text style={s.t20}>{loading && !data ? 'Loading the bay queue…' : `${toLoadText}${next ? ' · first out ' : ''}`}{next ? <Text style={s.t19}>{`${next.vehicleId}${next.departTime ? ` at ${hm(next.departTime)}` : ''}`}</Text> : null}</Text>
             </View>
           </View>
           <View style={s.v33}>

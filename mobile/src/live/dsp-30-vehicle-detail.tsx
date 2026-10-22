@@ -133,7 +133,7 @@ export default function ScreenDsp30VehicleDetail() {
                         <Text style={s.t22}>{`${t.departTime ? 'Departed' : 'Leaves'} ${depotName(t.depot)}`}</Text>
                       </View>
                       <View>
-                        <Text style={s.t23}>{[`${ts.length} orders`, (lr?.bay ?? t.bay) ? `bay ${lr?.bay ?? t.bay}` : undefined, (lr?.reeferTempC ?? t.reeferTempC) !== null && (lr?.reeferTempC ?? t.reeferTempC) !== undefined ? `reefer ${lr?.reeferTempC ?? t.reeferTempC} °C` : undefined, STATUS[t.status]].filter(Boolean).join(' · ')}</Text>
+                        <Text style={s.t23}>{[`${ts.length} ${ts.length === 1 ? 'order' : 'orders'}`, (lr?.bay ?? t.bay) ? `bay ${lr?.bay ?? t.bay}` : undefined, (lr?.reeferTempC ?? t.reeferTempC) !== null && (lr?.reeferTempC ?? t.reeferTempC) !== undefined ? `reefer ${lr?.reeferTempC ?? t.reeferTempC} °C` : undefined, STATUS[t.status]].filter(Boolean).join(' · ')}</Text>
                       </View>
                     </View>
                     <View style={s.v26}>

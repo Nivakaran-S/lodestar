@@ -76,7 +76,7 @@ export default function ScreenSmA1StoreRecordedOffline() {
             </View>
             {savedAt ? (
               <View>
-                <Text style={s.t14} testID="delivered-at">{hm(savedAt)}<Text style={s.t13}>{"delivered"}</Text></Text>
+                <Text style={s.t14} testID="delivered-at">{hm(savedAt)}<Text style={s.t13}>{" delivered"}</Text></Text>
               </View>
             ) : null}
             {syncedAt ? (

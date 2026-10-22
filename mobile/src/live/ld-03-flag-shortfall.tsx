@@ -111,7 +111,7 @@ export default function ScreenLd03FlagShortfall() {
                   <Text style={s.t12}>{"Short"}</Text>
                 </View>
                 <View>
-                  <Text style={s.t17}>{line ? String(short) : "—"}<Text style={s.t16}>{"units"}</Text></Text>
+                  <Text style={s.t17}>{line ? String(short) : "—"}<Text style={s.t16}>{` ${short === 1 ? "unit" : "units"}`}</Text></Text>
                 </View>
               </View>
               <View style={s.v24}>

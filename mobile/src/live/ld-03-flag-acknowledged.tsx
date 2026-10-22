@@ -73,7 +73,7 @@ export default function ScreenLd03FlagAcknowledged() {
           <View style={s.v23}>
             <View style={s.v19}>
               <View style={s.v16}>
-                <Text style={s.t15} testID="accounted">{String(done)}<Text style={s.t14}>{`of ${total} accounted`}</Text></Text>
+                <Text style={s.t15} testID="accounted">{String(done)}<Text style={s.t14}>{` of ${total} accounted`}</Text></Text>
               </View>
               <View style={s.v18}>
                 <Text style={s.t17} numberOfLines={1}>{total - done ? `${total - done} to go` : 'All in'}</Text>
@@ -128,7 +128,7 @@ export default function ScreenLd03FlagAcknowledged() {
                           <Text style={s.t35}>{`${sf.qtyLoaded}/${l.qty}`}</Text>
                         </View>
                         <View>
-                          <Text style={s.t36}>{"units"}</Text>
+                          <Text style={s.t36}>{l.qty === 1 ? "unit" : "units"}</Text>
                         </View>
                       </View>
                       <View style={s.v38}>
@@ -160,7 +160,7 @@ export default function ScreenLd03FlagAcknowledged() {
                         <Text style={s.t35}>{String(lastTicked.qty)}</Text>
                       </View>
                       <View>
-                        <Text style={s.t36}>{"units"}</Text>
+                        <Text style={s.t36}>{lastTicked.qty === 1 ? "unit" : "units"}</Text>
                       </View>
                     </View>
                   </View>
@@ -186,7 +186,7 @@ export default function ScreenLd03FlagAcknowledged() {
                         <Text style={s.t35}>{String(l.qty)}</Text>
                       </View>
                       <View>
-                        <Text style={s.t36}>{"units"}</Text>
+                        <Text style={s.t36}>{l.qty === 1 ? "unit" : "units"}</Text>
                       </View>
                     </View>
                   </View>

@@ -69,7 +69,7 @@ export default function ScreenSm12Orders() {
                         <Text style={s.t4}>{`${i === 0 ? 'Next delivery' : 'Delivery'} · ${dayLabel(g.date)}`}</Text>
                       </View>
                       <View>
-                        <Text style={s.t13}>{String(units)}<Text style={s.t12}>{"units"}</Text></Text>
+                        <Text style={s.t13}>{String(units)}<Text style={s.t12}>{units === 1 ? " unit" : " units"}</Text></Text>
                       </View>
                     </View>
                     <View style={s.v17}>

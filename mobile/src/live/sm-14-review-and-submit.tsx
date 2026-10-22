@@ -68,7 +68,7 @@ export default function ScreenSm14ReviewAndSubmit() {
               <Text style={s.t4}>{`You're ordering for ${dayLabel(runDate)}`}</Text>
             </View>
             <View>
-              <Text style={s.t9} testID="review-units">{String(all.units)}<Text style={s.t8}>{"units"}</Text></Text>
+              <Text style={s.t9} testID="review-units">{String(all.units)}<Text style={s.t8}>{all.units === 1 ? " unit" : " units"}</Text></Text>
             </View>
             <View>
               <Text style={s.t10}>{draft ? `${plural(orders, 'order')} · ${all.kg} kg · ${all.m3} m³${outlet ? ` · delivery window ${outlet.windowOpen}–${outlet.windowClose}` : ''}` : claims ? 'No draft yet · start a new order' : 'Sign in to review your order'}</Text>

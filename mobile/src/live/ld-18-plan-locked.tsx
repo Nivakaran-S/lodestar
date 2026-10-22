@@ -105,7 +105,7 @@ export default function ScreenLd18PlanLocked() {
                         <Text style={s.t29}>{String(l.qty)}</Text>
                       </View>
                       <View>
-                        <Text style={s.t10}>{"units"}</Text>
+                        <Text style={s.t10}>{l.qty === 1 ? "unit" : "units"}</Text>
                       </View>
                     </View>
                   </View>

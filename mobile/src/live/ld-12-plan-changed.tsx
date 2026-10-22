@@ -66,7 +66,7 @@ export default function ScreenLd12PlanChanged() {
                   <Text style={s.t14}>{`What moved · v${before?.planVersion ?? '—'} → v${version ?? '—'}`}</Text>
                 </View>
                 <View style={s.v15}>
-                  <Text style={s.t16}>{`${moved.length} of ${ch?.lines ?? moved.length} lines`}</Text>
+                  <Text style={s.t16}>{`${moved.length} of ${ch?.lines ?? moved.length} ${(ch?.lines ?? moved.length) === 1 ? 'line' : 'lines'}`}</Text>
                 </View>
               </View>
               <View style={s.v30}>
@@ -94,7 +94,7 @@ export default function ScreenLd12PlanChanged() {
                         <Text style={s.t25}>{String(m.line.qty)}</Text>
                       </View>
                       <View>
-                        <Text style={s.t26}>{"units"}</Text>
+                        <Text style={s.t26}>{m.line.qty === 1 ? "unit" : "units"}</Text>
                       </View>
                     </View>
                   </View>

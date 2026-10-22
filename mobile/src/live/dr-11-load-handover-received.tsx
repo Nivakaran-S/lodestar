@@ -167,7 +167,7 @@ export default function ScreenDr11LoadHandoverReceived() {
                           <Text style={s.t33}>{String(units - short)}</Text>
                         </View>
                         <View>
-                          <Text style={s.t34}>{short ? `of ${units}` : "units"}</Text>
+                          <Text style={s.t34}>{short ? `of ${units}` : units - short === 1 ? "unit" : "units"}</Text>
                         </View>
                       </View>
                     </View>

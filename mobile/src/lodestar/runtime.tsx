@@ -146,9 +146,10 @@ async function runAction(onPress: TapAction | undefined, notify: (t: Toast) => v
 // A tappable box. `lk` is the link code the generator put on it; `say` is text to read aloud.
 // `group` marks a tappable card that holds other buttons (on the web a button can't contain a button).
 // Live screens: `onPress` runs first, `to` overrides the prototype target, `disabled` blocks the tap.
-export function Tap({ lk, say, group, style, children, onPress, to, disabled, testID }: {
+// `label` names the button for screen readers when its content doesn't (an icon-only button, a row that flags).
+export function Tap({ lk, say, group, style, children, onPress, to, disabled, testID, label }: {
   lk?: string; say?: string; group?: boolean; style?: StyleProp<ViewStyle>; children?: ReactNode;
-  onPress?: TapAction; to?: Target | string | null; disabled?: boolean; testID?: string;
+  onPress?: TapAction; to?: Target | string | null; disabled?: boolean; testID?: string; label?: string;
 }) {
   const { nav, notify } = useContext(NavContext);
   // gloves mode (LD-07): a wider touch area around every button
@@ -157,6 +158,7 @@ export function Tap({ lk, say, group, style, children, onPress, to, disabled, te
   return (
     <Pressable
       accessibilityRole={group ? undefined : 'button'}
+      accessibilityLabel={label}
       accessibilityState={disabled ? { disabled: true } : undefined}
       testID={testID ?? (lk ? 'lk-' + lk : say ? 'say' : undefined)}
       hitSlop={gloves ? 12 : undefined}

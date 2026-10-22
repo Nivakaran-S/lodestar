@@ -72,7 +72,7 @@ export default function ScreenLd17OfflineDockWiFi() {
           <View style={s.v20}>
             <View style={s.v17}>
               <View style={s.v16}>
-                <Text style={s.t15}>{data ? String(done) : "—"}<Text style={s.t14}>{` of ${total} lines`}</Text></Text>
+                <Text style={s.t15}>{data ? String(done) : "—"}<Text style={s.t14}>{` of ${total} ${total === 1 ? 'line' : 'lines'}`}</Text></Text>
               </View>
               <Tap style={s.v7} to={null} onPress={sendNow} disabled={syncing} testID="send-now">
                 <Text style={s.t6} numberOfLines={1}>{waiting.length ? (online ? `Send ${waiting.length} now` : `${waiting.length} to send`) : "All sent"}</Text>
@@ -158,7 +158,7 @@ export default function ScreenLd17OfflineDockWiFi() {
                         <Text style={s.t40}>{current.qty}</Text>
                       </View>
                       <View>
-                        <Text style={s.t41}>{"units"}</Text>
+                        <Text style={s.t41}>{current.qty === 1 ? "unit" : "units"}</Text>
                       </View>
                     </View>
                   </Tap>

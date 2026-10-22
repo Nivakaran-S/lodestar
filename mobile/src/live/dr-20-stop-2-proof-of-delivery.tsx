@@ -11,15 +11,21 @@ import { completeStop, queuePodPhoto, queuePodSignature } from '@/model/actions'
 import { SignaturePad } from '@/lodestar/signature';
 import { afterPod } from '@/model/run';
 import { useOnline, useOutbox, useStop } from '@/model/hooks';
+import { useFooterInset } from '@/lodestar/footer-inset';
 import { Frame, Grad, Icon, Scroll, Tap, type ScreenNav, type GradSpec } from '@/lodestar/runtime';
 import { themed } from '@/lodestar/day-theme';
 import { DRIVER_APP } from '@/lib/config';
 
 const nav: ScreenNav = {"links":{"L20":{"to":"dr-04-run-complete","kind":"go"},"L260":{"to":"dr-16-store-code-entry","kind":"go"},"B":{"to":"dr-19-stop-2-arrival-hawa-eliya","kind":"back"}}};
 
+// the footer's height before it is measured: Complete stop (58) + store OTP (44) + gap and padding (26)
+const FOOTER_H = 128;
+
 export default function ScreenDr20Stop2ProofOfDelivery() {
   const { stop, trip, view, lines } = useStop(1);
   const online = useOnline();
+  // the receiver's name and the signature pad scroll clear of the Complete stop footer (and the keyboard)
+  const inset = useFooterInset(FOOTER_H);
   const order = stop?.order;
   const pod = stop?.pod ?? null;
   const chilled = order?.tempClass === 'CHILLED';
@@ -73,14 +79,14 @@ export default function ScreenDr20Stop2ProofOfDelivery() {
             <Text style={s.t5} numberOfLines={1}>{online ? 'Online' : 'Offline'}</Text>
           </View>
         </View>
-        <Scroll style={s.v4} contentStyle={s.v44}>
+        <Scroll style={s.v4} contentStyle={[s.v44, { paddingBottom: inset.paddingBottom }]}>
           <View style={s.v18}>
             <View>
               <Text style={s.t9}>{`Received · ${chilled ? 'chilled' : 'dry'} `}<Text style={s.t8}>{order?.id ?? '—'}</Text></Text>
             </View>
             <View style={s.v16}>
               <View style={s.v12}>
-                <Text style={s.t11} testID="pod-count">{String(count)}<Text style={s.t10}>{`of ${ordered}`}</Text></Text>
+                <Text style={s.t11} testID="pod-count">{String(count)}<Text style={s.t10}>{` of ${ordered}`}</Text></Text>
               </View>
               <View style={s.v15}>
                 <View style={s.v13} />
@@ -165,7 +171,7 @@ export default function ScreenDr20Stop2ProofOfDelivery() {
             </View>
           </View>
         </Scroll>
-        <View style={s.v50}>
+        <View style={s.v50} onLayout={inset.onFooterLayout} testID="pod-footer">
           <Tap
             lk="L20"
             style={[s.v47, !signature && !delivered ? { opacity: 0.55 } : null]}

@@ -1,12 +1,13 @@
 // Lodestar Dock on the web at 768px and up: every Dock screen without a tablet design (P3) sits in the bay-tablet
 // shell of LD-21 / LD-02 tablet: the same header bar (Dock mark, depot · day, screen title, Bays / Flags / Shift
-// navigation, user chip) over a wide content pane. The screen's Frame drops its phone chrome inside (DockShellContext),
+// navigation, user chip) over a wide content pane. No phone status bar (clock, wifi, battery): the browser and the
+// tablet's own OS show those. The screen's Frame drops its phone chrome inside (DockShellContext),
 // and its bottom tab bar is hidden (PhoneOnly): the header carries that navigation.
 import type { ReactNode } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { FACES } from '@/screens/registry';
-import { dayLabel, hm } from '@/lib/time';
+import { dayLabel } from '@/lib/time';
 import { signOutTo } from '@/lodestar/live';
 import { DockShellContext, Icon, Tap, openScreen } from '@/lodestar/runtime';
 import { useClaims } from '@/model/hooks';
@@ -38,9 +39,6 @@ export function DockDesktopShell({ screen, children }: { screen: string; childre
   const compact = useWindowDimensions().width < 960;
   return (
     <View style={[bay.v0, { backgroundColor: '#f2f4f8' }]} testID="dock-desktop-shell">
-      <View style={bay.v5}>
-        <Text style={bay.t1}>{hm(today)}</Text>
-      </View>
       <View style={[bay.v22, s.head]}>
         <View style={bay.v6}>
           <Icon xml={X2} width={36} height={36} style={bay.v3} />

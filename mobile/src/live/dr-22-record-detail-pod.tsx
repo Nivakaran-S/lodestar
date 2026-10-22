@@ -71,7 +71,7 @@ export default function ScreenDr22RecordDetailPod() {
             {pod ? (
               <View style={s.v16}>
                 <View style={s.v12}>
-                  <Text style={s.t11} testID="pod-units">{String(pod.unitsDelivered)}<Text style={s.t10}>{`of ${pod.unitsOrdered}`}</Text></Text>
+                  <Text style={s.t11} testID="pod-units">{String(pod.unitsDelivered)}<Text style={s.t10}>{` of ${pod.unitsOrdered}`}</Text></Text>
                 </View>
                 {chip ? (
                   <View style={s.v15}>

@@ -66,7 +66,7 @@ export default function ScreenDr04RunComplete() {
                       sum.startedAt ? `Started ${hm(sum.startedAt)}` : '',
                       sum.endedAt ? `last stop ${hm(sum.endedAt)}` : '',
                       `${sum.delivered.length} of ${plural(sum.stops.length, 'stop')} delivered`,
-                      `${sum.unitsDelivered} of ${sum.unitsOrdered} units`,
+                      `${sum.unitsDelivered} of ${plural(sum.unitsOrdered, 'unit')}`,
                     ].filter(Boolean).join(' · ')
                   : 'Sign in to see your run'}
               </Text>
@@ -76,9 +76,10 @@ export default function ScreenDr04RunComplete() {
                 <Icon xml={X1} width={14} height={14} style={s.v1} />
                 <Text style={s.t6} numberOfLines={1}>{waiting.length ? `${plural(waiting.length, 'record')} waiting to send` : `All ${plural(synced.length, 'record')} synced${summary.lastSyncedAt ? ` ${hm(summary.lastSyncedAt)}` : ''}`}</Text>
               </View>
-              <View style={s.v16}>
-                <View style={s.v14} />
-                <Text style={s.t15} numberOfLines={1}>{issues ? plural(issues, 'exception') : 'No exceptions'}</Text>
+              {/* red only when there is something to look at; a clean run reads as done, in green */}
+              <View style={s.v16} testID="exceptions-chip">
+                <View style={issues ? s.v14 : [s.v14, s.okDot]} />
+                <Text style={issues ? s.t15 : [s.t15, s.okText]} numberOfLines={1}>{issues ? plural(issues, 'exception') : 'No exceptions'}</Text>
               </View>
             </View>
           </View>
@@ -88,7 +89,7 @@ export default function ScreenDr04RunComplete() {
                 <Text style={s.t19}>{waiting.length ? 'Delivered · some still on this phone' : 'Delivered stops'}</Text>
               </View>
               <View style={s.v11}>
-                <Text style={s.t20}>{`${sum.unitsDelivered}/${sum.unitsOrdered} units`}</Text>
+                <Text style={s.t20}>{`${sum.unitsDelivered}/${plural(sum.unitsOrdered, 'unit')}`}</Text>
               </View>
             </View>
             <View style={s.v34}>
@@ -255,6 +256,8 @@ const s = themed(StyleSheet.create({
   v12: {"flexDirection":"row","alignItems":"center","rowGap":14,"columnGap":14},
   t13: {"color":"#b5bdd1","fontSize":14,"lineHeight":20.3,"fontFamily":"Inter_400Regular"},
   v14: {"flexShrink":1,"width":7,"height":7,"backgroundColor":"#ff8a7a","borderRadius":3.5},
+  okDot: { backgroundColor: '#5ee0a8' },
+  okText: { color: '#5ee0a8' },
   t15: {"color":"#ff8a7a","fontSize":13,"lineHeight":19.5,"fontFamily":"Inter_600SemiBold"},
   v16: {"flexDirection":"row","alignItems":"center","rowGap":5,"columnGap":5,"flexShrink":1},
   v17: {"flexDirection":"row","justifyContent":"space-between","alignItems":"center","rowGap":12,"columnGap":12},

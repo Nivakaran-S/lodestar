@@ -15,6 +15,7 @@ import { useClaims, useLoadSheet } from '@/model/hooks';
 import { loadGroups, ordinal, reeferOf, shortfallFor, tempLabel, useMarkLoading, useRePlanAlert, useTicks } from '@/model/dock';
 import type { OrderLineItem } from '@/model/types';
 import { truckSvg } from '@/lodestar/truck';
+import { TruckDiagram } from '@/lodestar/truck-view';
 import { Frame, Grad, Icon, Scroll, Tap, openScreen, type ScreenNav, type GradSpec } from '@/lodestar/runtime';
 
 const nav: ScreenNav = {"links":{"L219":{"to":"ld-10-scan-a-line","kind":"go"},"L220":{"to":"ld-02-load-sheet","kind":"go"},"B":{"to":"ld-02-load-sheet","kind":"back"}}};
@@ -90,7 +91,7 @@ export default function ScreenLd30LoadSheetSpeaking() {
           <View style={s.v27}>
             <View style={s.v14}>
               <View style={s.v11}>
-                <Text style={s.t10} testID="lines-done">{String(done)}<Text style={s.t9}>{`of ${plural(total, 'line')}`}</Text></Text>
+                <Text style={s.t10} testID="lines-done">{String(done)}<Text style={s.t9}>{` of ${plural(total, 'line')}`}</Text></Text>
               </View>
               <View style={s.v13}>
                 <Text style={s.t12} numberOfLines={1}>{total ? `${total - done} to go${trip?.bay ? ` · bay ${trip.bay}` : ''}` : '—'}</Text>
@@ -102,7 +103,7 @@ export default function ScreenLd30LoadSheetSpeaking() {
               </View>
             </View>
             <View style={s.v24}>
-              {truck ? <Icon xml={truck} width={302} height={96} style={s.v18} /> : null}
+              {truck ? <TruckDiagram xml={truck} style={s.v18} /> : null}
               <View style={s.v23}>
                 <Text style={s.t19}>{"Cab left, rear doors right"}</Text>
                 <View style={s.v20} />
@@ -178,7 +179,7 @@ export default function ScreenLd30LoadSheetSpeaking() {
                       <Text style={s.t33}>{String(current.qty)}</Text>
                     </View>
                     <View>
-                      <Text style={s.t34}>{"units"}</Text>
+                      <Text style={s.t34}>{current.qty === 1 ? "unit" : "units"}</Text>
                     </View>
                   </View>
                   <View style={s.v43}>

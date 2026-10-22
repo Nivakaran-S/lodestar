@@ -75,7 +75,7 @@ export default function ScreenLd13FlagsTab() {
             </View>
             <View style={s.v18}>
               <View style={s.v15}>
-                <Text style={s.t14}>{claims ? String(open) : "—"}<Text style={s.t13}>{"open"}</Text></Text>
+                <Text style={s.t14}>{claims ? String(open) : "—"}<Text style={s.t13}>{" open"}</Text></Text>
               </View>
               <View style={s.v17}>
                 <Icon xml={X1} width={18} height={18} style={s.v1} />

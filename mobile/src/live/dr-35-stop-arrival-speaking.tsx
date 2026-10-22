@@ -42,7 +42,7 @@ export default function ScreenDr35StopArrivalSpeaking() {
         access ? `${access}.` : '',
         o?.accessNote ? `${o.accessNote}.` : '',
         group.some(r => r.order)
-          ? `To drop: ${group.filter(r => r.order).map(r => `${r.order!.tempClass === 'CHILLED' ? 'chilled' : 'dry'} order ${r.order!.id}, ${r.order!.units} units`).join('; then ')}.`
+          ? `To drop: ${group.filter(r => r.order).map(r => `${r.order!.tempClass === 'CHILLED' ? 'chilled' : 'dry'} order ${r.order!.id}, ${plural(r.order!.units, 'unit')}`).join('; then ')}.`
           : '',
       ].filter(Boolean).join(' ')
     : '';

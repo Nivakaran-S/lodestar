@@ -3,7 +3,8 @@
 // Today's trips of the depot by bay (bay queue): vehicle, departure, lines checked on this tablet of the trip's
 // lines, flags (load-record shortfalls and unsent ones) and status. Tapping a bay opens its load sheet.
 import { useState } from 'react';
-import { Text, View, StyleSheet } from 'react-native';
+import { Text, View, StyleSheet, useWindowDimensions } from 'react-native';
+import { tempClassIcon } from '@/lodestar/vehicle-icon';
 import { dayLabel, hm, until } from '@/lib/time';
 import { plural, signOutTo, titleCase } from '@/lodestar/live';
 import { isReleased, onTime, useRePlanAlert, useTickCounts, useTripLineCounts } from '@/model/dock';
@@ -35,6 +36,7 @@ export default function ScreenLd21BayOverview() {
   const ticked = useTickCounts(ids);
   const [picked, setPicked] = useState<string | null>(null);
   const [now] = useState(() => Date.now());
+  const roomy = useWindowDimensions().width >= 1024;
   const active = trips.filter(t => !isReleased(t, items));
   const next = [...active].sort((a, b) => (a.departTime ?? '~').localeCompare(b.departTime ?? '~'))[0] ?? null;
   const selected = trips.find(t => t.id === picked) ?? next ?? trips[0] ?? null;
@@ -51,15 +53,6 @@ export default function ScreenLd21BayOverview() {
   return (
     <Frame bg="#f2f4f8" nav={nav} style={s.v0}>
       <View style={s.v81}>
-        <View style={s.v5}>
-          <View style={s.v2}>
-            <Text style={s.t1}>{hm(new Date().toISOString())}</Text>
-          </View>
-          <View style={s.v4}>
-            <Icon xml={X0} width={15} height={15} style={s.v3} />
-            <Icon xml={X1} width={15} height={15} style={s.v3} />
-          </View>
-        </View>
         <View style={s.v22}>
           <View style={s.v6}>
             <Icon xml={X2} width={36} height={36} style={s.v3} />
@@ -108,7 +101,7 @@ export default function ScreenLd21BayOverview() {
                 <Text style={s.t24}>{depot ? `${depotName(depot)} right now` : "Right now"}</Text>
               </View>
               <View>
-                <Text style={s.t26} testID="on-time">{trips.length ? String(onTimeCount) : "—"}<Text style={s.t25}>{trips.length ? `of ${plural(trips.length, 'bay')} on time` : ` ${empty}`}</Text></Text>
+                <Text style={s.t26} testID="on-time">{trips.length ? String(onTimeCount) : "—"}<Text style={s.t25}>{trips.length ? ` of ${plural(trips.length, 'trip')} on time` : ` ${empty}`}</Text></Text>
               </View>
             </View>
             <View style={s.v32}>
@@ -148,7 +141,7 @@ export default function ScreenLd21BayOverview() {
                   </View>
                   <View style={s.v42}>
                     <View style={s.v41}>
-                      {chilled ? <Icon xml={X4} width={14} height={14} style={s.v3} /> : <Icon xml={X7} width={14} height={14} style={s.v3} />}
+                      {t.vehicle ? <Icon xml={tempClassIcon(t.vehicle.tempClass).xml} width={14} height={14} style={s.v3} /> : null}
                       <Text style={chilled ? s.t40 : s.t67} numberOfLines={1}>{kind(t) || "—"}</Text>
                     </View>
                   </View>
@@ -199,19 +192,22 @@ export default function ScreenLd21BayOverview() {
           </View>
         </Scroll>
         <View style={s.v80}>
-          <View style={s.v74}>
-            <Icon xml={X8} width={18} height={18} style={s.v3} />
-            <Text style={s.t44}>{"Tap any bay to open its load sheet. The next bay out is outlined."}</Text>
-          </View>
+          {/* the hint gives way first: below 1024 px (a tablet held upright) it is dropped so both buttons stay on one line */}
+          {roomy ? (
+            <View style={s.v74}>
+              <Icon xml={X8} width={18} height={18} style={s.v3} />
+              <Text style={s.t44} numberOfLines={2}>{"Tap any bay to open its load sheet. The next bay out is outlined."}</Text>
+            </View>
+          ) : null}
           <View style={s.v13} />
-          <Tap lk="L223" style={s.v76}>
+          <Tap lk="L223" style={[s.v76, x.btn]}>
             <Icon xml={X9} width={22} height={22} style={s.v3} />
-            <Text style={s.t75}>{flags.length ? `Flags · ${flags.length} waiting` : "Flags"}</Text>
+            <Text style={s.t75} numberOfLines={1}>{flags.length ? `Flags · ${flags.length} waiting` : "Flags"}</Text>
           </Tap>
-          <Tap lk="L222" style={s.v79} to={sheetOf(selected)}>
+          <Tap lk="L222" style={[s.v79, x.btn]} to={sheetOf(selected)}>
             <Grad g={G3} style={s.v77} />
             <Icon xml={X10} width={22} height={22} style={s.v3} />
-            <Text style={s.t78}>{selected ? `Open Bay ${selected.bay ?? selected.vehicleId}` : "Open bay"}</Text>
+            <Text style={s.t78} numberOfLines={1}>{selected ? `Open Bay ${selected.bay ?? selected.vehicleId}` : "Open bay"}</Text>
           </Tap>
         </View>
       </View>
@@ -219,14 +215,10 @@ export default function ScreenLd21BayOverview() {
   );
 }
 
-const X0 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#0a0f1a\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\" width=\"15\" height=\"15\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01\" fill=\"none\" stroke=\"#0a0f1a\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path></svg>";
-const X1 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#0a0f1a\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\" width=\"15\" height=\"15\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"2\" y=\"7\" width=\"18\" height=\"10\" rx=\"2\" fill=\"none\" stroke=\"#0a0f1a\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></rect><path d=\"M22 11v2\" fill=\"none\" stroke=\"#0a0f1a\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path><rect x=\"4\" y=\"9\" width=\"12\" height=\"6\" rx=\"1\" fill=\"#0a0f1a\" stroke=\"#0a0f1a\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></rect></svg>";
 export const X2 = "<svg viewBox=\"0 0 32 32\" width=\"36\" height=\"36\" fill=\"#000000\" stroke=\"none\" stroke-width=\"1\" stroke-linecap=\"butt\" stroke-linejoin=\"miter\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\" xmlns=\"http://www.w3.org/2000/svg\"><rect width=\"32\" height=\"32\" rx=\"8\" fill=\"#6d28d9\" stroke=\"none\" stroke-width=\"1\" stroke-linecap=\"butt\" stroke-linejoin=\"miter\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></rect><g transform=\"translate(7.36 7.36) scale(0.72)\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"><path d=\"M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path><path d=\"M3.3 7 12 12l8.7-5M12 22V12\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path></g></svg>";
 const X3 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#047857\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\" width=\"18\" height=\"18\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M20 6 9 17l-5-5\" fill=\"none\" stroke=\"#047857\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path></svg>";
-const X4 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#0e7490\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\" width=\"14\" height=\"14\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M12 2v20M4.2 7l15.6 10M4.2 17 19.8 7\" fill=\"none\" stroke=\"#0e7490\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path></svg>";
 const X5 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#047857\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\" width=\"17\" height=\"17\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M20 6 9 17l-5-5\" fill=\"none\" stroke=\"#047857\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path></svg>";
 const X6 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#b42318\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\" width=\"17\" height=\"17\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z\" fill=\"none\" stroke=\"#b42318\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path><path d=\"M12 9v4M12 17h.01\" fill=\"none\" stroke=\"#b42318\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path></svg>";
-const X7 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#b45309\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\" width=\"14\" height=\"14\" xmlns=\"http://www.w3.org/2000/svg\"><circle cx=\"12\" cy=\"12\" r=\"10\" fill=\"none\" stroke=\"#b45309\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></circle><path d=\"M12 6v6l4 2\" fill=\"none\" stroke=\"#b45309\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path></svg>";
 const X8 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#344054\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\" width=\"18\" height=\"18\" xmlns=\"http://www.w3.org/2000/svg\"><circle cx=\"12\" cy=\"12\" r=\"10\" fill=\"none\" stroke=\"#344054\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></circle><path d=\"M12 16v-4M12 8h.01\" fill=\"none\" stroke=\"#344054\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path></svg>";
 const X9 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#0a0f1a\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\" width=\"22\" height=\"22\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z\" fill=\"none\" stroke=\"#0a0f1a\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path><path d=\"M12 9v4M12 17h.01\" fill=\"none\" stroke=\"#0a0f1a\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path></svg>";
 const X10 = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\" width=\"22\" height=\"22\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill-opacity=\"1\" stroke-opacity=\"1\" fill-rule=\"nonzero\"></path></svg>";
@@ -323,4 +315,5 @@ export const s = StyleSheet.create({
 const x = StyleSheet.create({
   wrap: { flexWrap: 'wrap' },
   card: { minWidth: 220 },
+  btn: { flexShrink: 0 },
 });

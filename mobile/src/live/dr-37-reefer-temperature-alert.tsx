@@ -102,7 +102,7 @@ export default function ScreenDr37ReeferTemperatureAlert() {
                   style={[s.t14, x.input]}
                   testID="reefer-reading"
                 />
-                <Text style={s.t14}>{"\u00a0°C"}<Text style={s.t13}>{"now"}</Text></Text>
+                <Text style={s.t14}>{"\u00a0°C"}<Text style={s.t13}>{" now"}</Text></Text>
               </View>
               {reading !== undefined ? (
                 <View style={warm ? s.v17 : x.okPill}>

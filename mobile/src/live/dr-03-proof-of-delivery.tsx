@@ -9,15 +9,21 @@ import { completeStop, queuePodSignature } from '@/model/actions';
 import { SignaturePad } from '@/lodestar/signature';
 import { afterPod } from '@/model/run';
 import { useOnline, useStop, useParam } from '@/model/hooks';
+import { useFooterInset } from '@/lodestar/footer-inset';
 import { Frame, Grad, Icon, Scroll, Tap, type ScreenNav, type GradSpec } from '@/lodestar/runtime';
 import { themed } from '@/lodestar/day-theme';
 import { DRIVER_APP } from '@/lib/config';
 
 const nav: ScreenNav = {"links":{"L15":{"to":"sm-02-order-status-and-eta","kind":"go"},"L257":{"to":"dr-16-store-code-entry","kind":"go"},"B":{"to":"dr-02-stop-arrival","kind":"back"}}};
 
+// the footer's height before it is measured: Complete stop (58) + store OTP (44) + gap and padding (26)
+const FOOTER_H = 128;
+
 export default function ScreenDr03ProofOfDelivery() {
   const { stop, trip, view, lines } = useStop();
   const online = useOnline();
+  // the receiver's name and the signature pad scroll clear of the Complete stop footer (and the keyboard)
+  const inset = useFooterInset(FOOTER_H);
   const order = stop?.order;
   const chilled = order?.tempClass === 'CHILLED';
   const shortfalls = trip?.loadRecord?.shortfalls ?? [];
@@ -61,14 +67,14 @@ export default function ScreenDr03ProofOfDelivery() {
             <Text style={s.t5} numberOfLines={1}>{online ? 'Online' : 'Offline'}</Text>
           </View>
         </View>
-        <Scroll style={s.v4} contentStyle={s.v75}>
+        <Scroll style={s.v4} contentStyle={[s.v75, { paddingBottom: inset.paddingBottom }]}>
           <View style={s.v32}>
             <View>
               <Text style={s.t9}>{`Received · ${chilled ? 'chilled' : 'dry'} `}<Text style={s.t8}>{order?.id ?? '—'}</Text></Text>
             </View>
             <View style={s.v16}>
               <View style={s.v12}>
-                <Text style={s.t11} testID="pod-count">{String(count)}<Text style={s.t10}>{`of ${ordered}`}</Text></Text>
+                <Text style={s.t11} testID="pod-count">{String(count)}<Text style={s.t10}>{` of ${ordered}`}</Text></Text>
               </View>
               {count < ordered ? (
                 <View style={s.v15}>
@@ -183,7 +189,7 @@ export default function ScreenDr03ProofOfDelivery() {
             </View>
           </View>
         </Scroll>
-        <View style={s.v81}>
+        <View style={s.v81} onLayout={inset.onFooterLayout} testID="pod-footer">
           <Tap
             lk="L15"
             style={[s.v78, !signature && !delivered ? { opacity: 0.55 } : null]}

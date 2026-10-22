@@ -157,7 +157,7 @@ function savedIcon(noSignal: string): string {
 function stopState(unsent: boolean, delivered: boolean, units: number, orders: number): string {
   if (unsent) return 'Saved on phone';
   if (delivered) return 'Delivered';
-  return units ? `${units} units` : plural(orders, 'order');
+  return units ? plural(units, 'unit') : plural(orders, 'order');
 }
 
 function stopTime(st: TripStop, delivered: boolean): string {

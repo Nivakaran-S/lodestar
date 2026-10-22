@@ -70,7 +70,7 @@ export default function ScreenLd23PlanChanged() {
               <Text style={s.t7} numberOfLines={1}>{"Loaded"}</Text>
             </View>
             <View>
-              <Text style={s.t9} numberOfLines={1}>{ch ? `${ticked} of ${ch.lines} lines` : '—'}</Text>
+              <Text style={s.t9} numberOfLines={1}>{ch ? `${ticked} of ${ch.lines} ${ch.lines === 1 ? 'line' : 'lines'}` : '—'}</Text>
             </View>
           </View>
           <View style={s.v12} />
@@ -152,7 +152,7 @@ export default function ScreenLd23PlanChanged() {
                     <Text style={s.t36}>{`What moved · v${before?.planVersion ?? '—'} → v${version ?? '—'}`}</Text>
                   </View>
                   <View style={s.v2}>
-                    <Text style={s.t37}>{`${moved.length} of ${ch?.lines ?? moved.length} lines`}</Text>
+                    <Text style={s.t37}>{`${moved.length} of ${ch?.lines ?? moved.length} ${(ch?.lines ?? moved.length) === 1 ? 'line' : 'lines'}`}</Text>
                   </View>
                 </View>
                 <View style={s.v53}>
@@ -195,7 +195,7 @@ export default function ScreenLd23PlanChanged() {
                           <Text style={s.t49}>{String(m.line.qty)}</Text>
                         </View>
                         <View>
-                          <Text style={s.t7}>{"units"}</Text>
+                          <Text style={s.t7}>{m.line.qty === 1 ? "unit" : "units"}</Text>
                         </View>
                       </View>
                     </View>

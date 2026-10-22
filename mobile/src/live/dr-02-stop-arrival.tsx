@@ -32,7 +32,7 @@ export default function ScreenDr02StopArrival() {
         o ? `Window ${o.windowOpen} to ${o.windowClose}.` : '',
         access ? `${access}.` : '',
         o?.accessNote ? `${o.accessNote}.` : '',
-        order ? `To drop: ${chilled ? 'chilled' : 'dry'} order ${order.id}, ${order.units} units${lines.length ? `, ${lines.length} lines` : ''}.` : '',
+        order ? `To drop: ${chilled ? 'chilled' : 'dry'} order ${order.id}, ${plural(order.units, 'unit')}${lines.length ? `, ${lines.length} lines` : ''}.` : '',
       ].filter(Boolean).join(' ')
     : 'No stop loaded yet.';
   const params = stop ? { stop: stop.id } : undefined;
@@ -163,7 +163,7 @@ export default function ScreenDr02StopArrival() {
                           <Text style={s.t44}>{String(ro.units)}</Text>
                         </View>
                         <View>
-                          <Text style={s.t45}>{"units"}</Text>
+                          <Text style={s.t45}>{ro.units === 1 ? "unit" : "units"}</Text>
                         </View>
                       </View>
                     </View>

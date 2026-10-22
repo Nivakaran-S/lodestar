@@ -3,7 +3,8 @@
 // LD-02 tablet, LD-04 release vehicle ↔ LD-22 release checklist, LD-12 ↔ LD-23 plan changed. The tablet-only
 // screens (LD-20 shared sign-in, LD-27 tablet locked) fall back to their phone counterparts on a phone width.
 // Native builds always show the phone screens.
-import { useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
+import * as Router from 'expo-router';
 import { Dimensions, Platform, useWindowDimensions } from 'react-native';
 
 export const WIDE_MIN = 768;
@@ -40,10 +41,32 @@ export function useWideWeb(): boolean {
   return useWebWidth() === 'wide';
 }
 
-/** 'wide' or 'narrow' in a mounted web window; null on native and on the web's pre-rendered first pass. */
+// Whether this route is the one on screen. A screen pushed over another (LD-04 → LD-15 handover) leaves the one below
+// mounted; without this, a resize would let the hidden LD-04 swap itself to LD-22, and its router.replace would
+// replace the visible LD-15. (Outside a navigator, e.g. in tests, every screen counts as focused.)
+const useFocused: () => boolean = (() => {
+  const hook = (Router as { useIsFocused?: () => boolean }).useIsFocused;
+  return typeof hook === 'function'
+    ? () => {
+        try {
+          return hook();
+        } catch {
+          return true;
+        }
+      }
+    : () => true;
+})();
+
+/**
+ * 'wide' or 'narrow' in a mounted web window; null on native and on the web's pre-rendered first pass.
+ * A screen that is not on top keeps the width it last had while on top, so only the visible screen swaps variants.
+ */
 export function useWebWidth(): 'wide' | 'narrow' | null {
   const { width } = useWindowDimensions();
   const mounted = useSyncExternalStore(noSubscribe, () => true, () => false);
-  if (Platform.OS !== 'web' || !mounted) return null;
-  return width >= WIDE_MIN ? 'wide' : 'narrow';
+  const focused = useFocused();
+  const now: 'wide' | 'narrow' | null = Platform.OS !== 'web' || !mounted ? null : width >= WIDE_MIN ? 'wide' : 'narrow';
+  const [held, setHeld] = useState(now);
+  if (focused && held !== now) setHeld(now);
+  return focused ? now : (held ?? now);
 }

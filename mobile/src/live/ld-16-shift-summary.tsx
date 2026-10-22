@@ -74,7 +74,7 @@ export default function ScreenLd16ShiftSummary() {
             </View>
             <View style={s.v19}>
               <View style={s.v16}>
-                <Text style={s.t15} testID="released-count">{String(released.length)}<Text style={s.t14}>{"released"}</Text></Text>
+                <Text style={s.t15} testID="released-count">{String(released.length)}<Text style={s.t14}>{" released"}</Text></Text>
               </View>
               {timed ? (
                 <View style={s.v18}>

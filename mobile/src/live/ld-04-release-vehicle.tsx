@@ -1,10 +1,11 @@
 // Live screen (src/live): started from the generated screen of the same key, with real data and actions in the same Frame/Tap runtime.
 // LD-04 Release vehicle (P3, phone)
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Text, TextInput, View, StyleSheet } from 'react-native';
 import { hm, until } from '@/lib/time';
 import { releaseVehicle } from '@/model/actions';
 import { ackFor, loadGroups, reeferOf, shortfallFor, useTicks } from '@/model/dock';
+import { precoolReading } from '@/model/field-reports';
 import { useClaims, useLoadSheet, useNotifications, useOnline } from '@/model/hooks';
 import type { OrderLineItem } from '@/model/types';
 import { Frame, Grad, Icon, Scroll, Tap, showToast, type ScreenNav, type GradSpec, type Target } from '@/lodestar/runtime';
@@ -12,6 +13,7 @@ import { Frame, Grad, Icon, Scroll, Tap, showToast, type ScreenNav, type GradSpe
 const nav: ScreenNav = {"links":{"L10":{"to":"ld-15-handover-confirmed","kind":"go"},"L206":{"to":"ld-15-handover-confirmed","kind":"go"},"B":{"to":"ld-02-load-sheet","kind":"back"}}};
 
 const MAX_CHILLED_C = 4;
+const START_C = MAX_CHILLED_C - 1;
 const initials = (name?: string | null) =>
   (name ?? '')
     .split(/\s+/)
@@ -31,8 +33,19 @@ export default function ScreenLd04ReleaseVehicle() {
   const t = useTicks(sheet.tripId, sheet.data?.trip?.status);
   const [sealSel, setSeal] = useState<string | null>(null);
   const [tempSel, setTemp] = useState<number | null>(null);
+  // the reading confirmed on LD-09 (pre-cool check), as LD-22 uses it
+  const [precool, setPrecool] = useState<number | null>(null);
+  const tripId = trip?.id;
+  useEffect(() => {
+    if (!tripId) return;
+    let live = true;
+    void precoolReading(tripId).then(v => live && setPrecool(v));
+    return () => {
+      live = false;
+    };
+  }, [tripId]);
   const seal = sealSel ?? lr?.sealNumber ?? trip?.sealNumber ?? '';
-  const temp = tempSel ?? reeferOf(trip, lr);
+  const temp = tempSel ?? precool ?? reeferOf(trip, lr);
   const chilled = trip?.vehicle?.tempClass === 'CHILLED';
   const flagged = (l: OrderLineItem) => shortfallFor(sheet.shortfalls, l);
   const groups = loadGroups(data, l => t.isTicked(l.id) || !!flagged(l));
@@ -67,7 +80,8 @@ export default function ScreenLd04ReleaseVehicle() {
         setTimeout(() => showToast(online ? `${trip.vehicleId} released · sending` : 'Release saved on this phone · sends when there is signal'), 350);
       }
     : undefined;
-  const bump = (d: number) => setTemp(Math.round(((temp ?? MAX_CHILLED_C) + d) * 10) / 10);
+  // not read yet: the first tap on either button sets a passing reading a margin under the limit, then steps from there
+  const bump = (d: number) => setTemp(temp === undefined ? START_C : Math.round((temp + d) * 10) / 10);
 
   return (
     <Frame bg="#f2f4f8" nav={nav} style={s.v0}>
@@ -92,7 +106,7 @@ export default function ScreenLd04ReleaseVehicle() {
             </View>
             <View style={s.v17}>
               <View style={s.v14}>
-                <Text style={s.t13}>{data ? String(passed) : "—"}<Text style={s.t12}>{`of ${checkCount} checks`}</Text></Text>
+                <Text style={s.t13}>{data ? String(passed) : "—"}<Text style={s.t12}>{` of ${checkCount} checks`}</Text></Text>
               </View>
               <View style={s.v16}>
                 <Icon xml={X1} width={14} height={14} style={s.v1} />
@@ -212,6 +226,10 @@ export default function ScreenLd04ReleaseVehicle() {
                       <Text style={s.t39}>{trip?.vehicleId ?? "—"}</Text>
                     </View>
                   </View>
+                </View>
+                {/* every check that counts in the header shows its tick, the driver's too */}
+                <View style={s.v23} testID="driver-check">
+                  {checks.driver ? <Icon xml={X2} width={22} height={22} style={s.v1} /> : null}
                 </View>
               </View>
             </View>
