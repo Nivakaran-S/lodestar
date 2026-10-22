@@ -11,6 +11,9 @@ export function canonicalRoom(room: string): string {
   return (kind === 'dispatcher' || kind === 'loader') && id ? `${kind}:${id.toUpperCase()}` : room;
 }
 
+/** The most rooms one socket may ask for in its handshake (the rest are ignored). */
+const MAX_ROOMS = 100;
+
 const WS_ORIGINS =(process.env.WS_CORS_ORIGINS ?? 'https://localhost:8443,http://localhost:8082').split(',').map((s) => s.trim());
 
 /**
@@ -62,16 +65,18 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection,
       client.data.principal = principal;
       client.join(`user:${principal.sub}`);
 
-      const requested = String(client.handshake.query?.room ?? '')
+      const requested = [...new Set(String(client.handshake.query?.room ?? '')
         .split(',')
         .map((r) => r.trim())
-        .filter(Boolean);
-      for (const room of requested) {
+        .filter(Boolean))].slice(0, MAX_ROOMS);
+      // Checked together, not one after another: live operations asks for a trip room per route (DSP-04), and
+      // each trip room is a database read. Joined in the order asked for.
+      const allowed = await Promise.all(requested.map((room) => this.roomAllowed(principal, canonicalRoom(room)).catch(() => false)));
+      requested.forEach((room, i) => {
         // Join the canonical name, so dispatcher:kandy receives dispatcher:KANDY events.
-        const canonical = canonicalRoom(room);
-        if (await this.roomAllowed(principal, canonical)) client.join(canonical);
+        if (allowed[i]) client.join(canonicalRoom(room));
         else client.emit('room_denied', { room });
-      }
+      });
       this.logger.log(`WS ${client.id} connected as ${principal.sub} → ${[...client.rooms].join(', ')}`);
     } catch (err) {
       client.emit('unauthorized', { message: 'A valid access token is required' });

@@ -3,11 +3,11 @@
 // DSP-13) built from real records: orders in EXCEPTION, stops with a high late risk, and alert notifications
 // (vehicle and signal alerts, dock flags and vehicle faults, POD exceptions and failed stops, store receipt issues), and
 // the run's synced offline records with a conflict note (DSP-A2). p5Link() names the P5 screen that handles an item.
-import { addDays, dayFilter, fmtClock, fmtRunDate, fmtTime, isoDay } from '@/lib/format';
+import { addDays, dayFilter, fmtClock, fmtDayTime, fmtRunDate, fmtTime, isoDay } from '@/lib/format';
 import { loadPlanningRules } from './planning-rules';
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useAction, useEntity, useQuery } from '@/lib/odata/hooks';
-import type { AgentRun, AgentRunDetail, Notification, OfflineEvent, Order, TripStop } from '@/lib/odata/types';
+import type { AgentRun, AgentRunDetail, Notification, OfflineEvent, Order, Plan, TripStop } from '@/lib/odata/types';
 import { colomboDay, cutoffFor, depotFilter, useAgentRunId, useDepot, useRunDate } from '@/lib/workday';
 import { valueOf } from '@/lib/odata/client';
 import type { User } from '@/lib/odata/types';
@@ -68,13 +68,71 @@ export const ALERT_TYPES = [
   'SHORTFALL_FLAGGED', 'POD_EXCEPTION', 'STOP_FAILED', 'RECEIPT_ISSUE', 'VEHICLE_FAULT', 'ORDER_AT_RISK', 'DRIVER_REPORT',
 ];
 
+/** Reefer limit (°C) when a report names none: the platform's REEFER_MAX_C (backend libs/platform/src/cold-chain.ts). */
+const REEFER_MAX_C = 4;
+
+/**
+ * Whether a notice needs the dispatcher. Every ALERT_TYPES notice does, except a driver's report that is
+ * information: a passed pre-trip check, a reefer reading within the limit, a delivery on the store code. The
+ * notifications service stamps payload.severity ('info' | 'alert') on driver reports; older notices without it
+ * are judged from the report itself, the same way (backend apps/notifications noticeSeverity).
+ */
+export function isAlertNotice(n: Pick<Notification, 'type' | 'payload'>): boolean {
+  if (!ALERT_TYPES.includes(n.type)) return false;
+  if (n.type !== 'DRIVER_REPORT') return true;
+  return driverReportFailed((n.payload ?? {}) as Record<string, unknown>);
+}
+
+function tooWarm(p: Record<string, unknown>): boolean {
+  if (p.tempC === null || p.tempC === undefined || p.tempC === '') return false;
+  const t = Number(p.tempC);
+  const limit = p.limitC !== null && p.limitC !== undefined && Number.isFinite(Number(p.limitC)) ? Number(p.limitC) : REEFER_MAX_C;
+  return Number.isFinite(t) && t > limit;
+}
+
+function driverReportFailed(p: Record<string, unknown>): boolean {
+  if (p.severity === 'info' || p.severity === 'alert') return p.severity === 'alert';
+  switch (String(p.report ?? '').toUpperCase()) {
+    case 'VEHICLE_CHECK':
+      return p.ok === false || tooWarm(p) || (Array.isArray(p.items) && p.items.some(i => !!i && typeof i === 'object' && (i as { ok?: unknown }).ok === false));
+    case 'REEFER_TEMP':
+      return tooWarm(p);
+    case 'STORE_CODE':
+      return false;
+    default:
+      return true;
+  }
+}
+
+/** "7:27 AM" for a notice of today (Colombo), "Wed 21 Oct · 12:25 PM" for an older one: never yesterday's as today's. */
+export function fmtNoticeTime(v: string | null | undefined): string {
+  if (!v) return '—';
+  return colomboDay(new Date(v)) === colomboDay() ? fmtTime(v) : fmtDayTime(v);
+}
+
+/** The instant a Colombo calendar day starts ("2026-10-22" → 2026-10-21T18:30:00.000Z). */
+const colomboDayStart = (day: string) => new Date(Date.parse(`${day}T00:00:00Z`) - 330 * 60_000).toISOString();
+
+/**
+ * Notices that belong to the run in view: sent from the start of the run day or of today (Colombo), whichever is
+ * earlier, to the end of the run day. Older unread notices (yesterday's run) stay in the notifications panel but
+ * are not "things that need you now".
+ */
+export function noticeWindow(runDate: string, today = colomboDay()): string {
+  const from = runDate < today ? runDate : today;
+  const to = addDays(runDate > today ? runDate : today, 1);
+  return `sentAt ge ${colomboDayStart(from)} and sentAt lt ${colomboDayStart(to)}`;
+}
+
 function describeNotification(n: Notification): Pick<ExceptionItem, 'title' | 'meta' | 'tone' | 'outletId' | 'orderId' | 'vehicleId'> {
   const p = (n.payload ?? {}) as Record<string, unknown>;
   const text = (k: string) => (typeof p[k] === 'string' ? (p[k] as string) : undefined);
   const nice = n.type.toLowerCase().replace(/_/g, ' ');
   const title = text('title') ?? text('message') ?? nice.charAt(0).toUpperCase() + nice.slice(1);
-  const meta = [text('orderId'), text('vehicleId'), text('outletId'), text('location'), text('note'), fmtTime(n.sentAt)].filter(Boolean).join(' · ');
-  const tone: ExceptionTone = /BLACKOUT|SIGNAL/.test(n.type) ? 'off' : /FAIL|BLOCK|ISSUE|FAULT/.test(n.type) ? 'bad' : 'warn';
+  const meta = [text('orderId'), text('vehicleId'), text('outletId'), text('location'), text('note'), fmtNoticeTime(n.sentAt)].filter(Boolean).join(' · ');
+  // a failed pre-trip check (a driver report that needs dispatch) is as serious as a reefer fault
+  const failedCheck = n.type === 'DRIVER_REPORT' && String(p.report ?? '').toUpperCase() === 'VEHICLE_CHECK';
+  const tone: ExceptionTone = /BLACKOUT|SIGNAL/.test(n.type) ? 'off' : failedCheck || /FAIL|BLOCK|ISSUE|FAULT/.test(n.type) ? 'bad' : 'warn';
   return { title, meta, tone, outletId: text('outletId'), orderId: text('orderId'), vehicleId: text('vehicleId') };
 }
 
@@ -96,7 +154,7 @@ export function useExceptions(runDate: string | undefined, ordersFilter: string 
         c.list<Order>('Orders', { filter: `${ordersFilter} and status eq 'EXCEPTION'`, expand: 'outlet($select=name,district)', top: 50 }),
         c.list<TripStop>('TripStops', { filter: stopsFilter, expand: 'trip($select=vehicleId,district),outlet($select=name,windowClose)', orderby: 'lateRiskPct desc', top: 50 }),
         c.list<Notification>('Notifications', {
-          filter: `readAt eq null and type in (${ALERT_TYPES.map(t => `'${t}'`).join(',')})`,
+          filter: `readAt eq null and type in (${ALERT_TYPES.map(t => `'${t}'`).join(',')}) and ${noticeWindow(runDate!)}`,
           orderby: 'sentAt desc',
           top: 20,
         }),
@@ -131,7 +189,7 @@ export function useExceptions(runDate: string | undefined, ordersFilter: string 
           tripId: s.tripId,
           at: s.updatedAt,
         })),
-        ...notes.value.map(n => ({
+        ...notes.value.filter(isAlertNotice).map(n => ({
           id: `note:${n.id}`,
           source: 'notification' as const,
           notificationId: n.id,
@@ -203,6 +261,18 @@ export function useReviewRun() {
   const found = useAgentRun(useStored ? null : latest.data);
   const runId = useStored ? stored : latest.data ?? null;
   return { runId, run: useStored ? mine : found, setRunId, loading: !useStored && latest.loading };
+}
+
+/** The plan version an approved run became (Plans, by AgentRun.planId) and whether it is still the live one. */
+export function useRunPlan(run: AgentRun | null | undefined) {
+  const planId = run?.status === 'APPROVED' ? run.planId ?? null : null;
+  const q = useQuery<Plan | null>(planId ? `run-plan:${planId}` : null, async c =>
+    (await c.list<Plan>('Plans', { filter: `id eq '${planId!.replace(/'/g, "''")}'`, select: 'id,version,status', top: 1 })).value[0] ?? null,
+  { refreshOn: PLAN_EVENTS });
+  // until the row answers, the id says the version (PLK-2026-10-22-v1)
+  const fromId = planId ? Number(/-v(\d+)$/.exec(planId)?.[1]) || undefined : undefined;
+  const version = q.data?.version ?? fromId;
+  return { planId, version, status: q.data?.status, live: Boolean(planId) && (q.data ? q.data.status === 'PUBLISHED' : true) };
 }
 
 /** Starts a planning-agent draft for one depot and run date. The agent drafts; it never publishes. */

@@ -6,7 +6,7 @@
 // what was last loaded and are marked "Not live". DSP-24 renders this screen with `offlineView`.
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { colomboDay } from '@/lib/workday';
-import { dayFilter, fmtClock, fmtNum, fmtRunDate, fmtTime, pct, planNote } from '@/lib/format';
+import { dayFilter, fmtClock, fmtDay, fmtNum, fmtRunDate, fmtTime, pct, planNote } from '@/lib/format';
 import { useQuery } from '@/lib/odata/hooks';
 import type { Notification, Plan, Trip, Vehicle } from '@/lib/odata/types';
 import { PlanSide, useCount } from '@/components/live/chrome';
@@ -122,9 +122,15 @@ export default function LiveDsp08TodayOverview({ offlineView = false }: { offlin
     return { onTime: ok, done: stops.length };
   });
   const exceptions = useExceptions(runDate, ordersFilter, active);
-  const timeline = useQuery<Notification[]>('timeline', async c => (await c.list<Notification>('Notifications', { orderby: 'sentAt desc', top: 7 })).value.reverse(), {
+  // the latest notices up to now (never one dated later), oldest first; one from an earlier day shows its date
+  const timeline = useQuery<Notification[]>('timeline', async c => {
+    const now = new Date();
+    const page = await c.list<Notification>('Notifications', { filter: `sentAt le ${now.toISOString()}`, orderby: 'sentAt desc', top: 7 });
+    return page.value.filter(n => !n.sentAt || Date.parse(n.sentAt) <= now.getTime()).reverse();
+  }, {
     refreshOn: ['notification'],
   });
+  const todayOnly = (timeline.data ?? []).every(n => !n.sentAt || colomboDay(new Date(n.sentAt)) === colomboDay());
 
   const out = (trips.data ?? []).filter(t => t.status === 'ENROUTE').length;
   const complete = (trips.data ?? []).filter(t => t.status === 'COMPLETE').length;
@@ -169,7 +175,7 @@ export default function LiveDsp08TodayOverview({ offlineView = false }: { offlin
                   <span className="m-pill m-pill--offline"><Ic n="wifi-off" />{"Not live"}</span>
                 ) : (
                   <span className="m-tag" style={{ color: live === 'connected' ? '#6EE7B7' : '#B9C0E6' }} {...link('L149')}>
-                    <span className="dot" />{live === 'connected' ? 'Live' : 'Reconnecting'} · {fmtClock(new Date())}
+                    <span className="dot" />{live === 'connected' ? 'Live' : live === 'offline' ? 'Reconnecting' : 'Connecting'} · {fmtClock(new Date())}
                   </span>
                 )}
               </div>
@@ -228,11 +234,11 @@ export default function LiveDsp08TodayOverview({ offlineView = false }: { offlin
             </div>
           )}
           <div className="dx-card" style={{ flexShrink: 0 }}>
-            <div className="dx-card__head"><span className="dx-card__title">This morning</span><span className="dx-t13">your latest notices</span></div>
+            <div className="dx-card__head"><span className="dx-card__title">{!todayOnly ? 'Latest notices' : hour < 12 ? 'This morning' : 'Today'}</span><span className="dx-t13">your latest notices</span></div>
             <div className="dx-card__body" style={{ flexDirection: 'row', gap: '10px' }}>
               {timeline.error && <ErrorBanner compact error={timeline.error} onRetry={timeline.refresh} />}
               {!timeline.data && !timeline.error && <Skeleton rows={1} />}
-              {timeline.data?.length === 0 && <span className="dx-t13">No notices yet today.</span>}
+              {timeline.data?.length === 0 && <span className="dx-t13">No notices yet.</span>}
               {timeline.data?.map(n => (
                 <div key={n.id} className="vstack" style={{ gap: '6px', flex: '1', minWidth: '0' }}>
                   <div className="hstack" style={{ gap: '0' }}>
@@ -245,7 +251,9 @@ export default function LiveDsp08TodayOverview({ offlineView = false }: { offlin
                     />
                     <span style={{ display: 'block', flex: '1', height: '2px', background: 'var(--hair)' }} />
                   </div>
-                  <b className="mono" style={{ fontSize: '14px', color: 'var(--text)' }}>{fmtClock(n.sentAt)}</b>
+                  <b className="mono" style={{ fontSize: '14px', color: 'var(--text)' }} data-testid="notice-time">
+                    {n.sentAt && colomboDay(new Date(n.sentAt)) !== colomboDay() ? `${fmtDay(n.sentAt)} ${fmtClock(n.sentAt)}` : fmtClock(n.sentAt)}
+                  </b>
                   <span style={{ fontSize: '14px', fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {n.type.charAt(0) + n.type.slice(1).toLowerCase().replace(/_/g, ' ')}
                   </span>

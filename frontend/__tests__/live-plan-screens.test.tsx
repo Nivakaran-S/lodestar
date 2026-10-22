@@ -158,7 +158,7 @@ describe('DSP-08 Today overview', () => {
               { arrivalActual: '2026-04-07T01:30:00.000Z', etaModelBandLate: '2026-04-07T01:00:00.000Z' },
             ])
               : req.path === 'Orders' && req.query.$filter?.includes("status eq 'EXCEPTION'") ? page([order('ORDTX', { status: 'EXCEPTION', outlet: outlet('OUTTX', { name: 'Outlet X' }) })])
-                : req.path === 'Notifications' && req.query.$top === '7' ? page([{ id: 'N2', type: 'POD_MATCHED', sentAt: '2026-04-07T00:45:00.000Z', payload: { outletId: 'OUTT01' } }, { id: 'N1', type: 'SIGNAL_LOST', sentAt: '2026-04-07T00:30:00.000Z', payload: { vehicleId: 'VEHT1' } }])
+                : req.path === 'Notifications' && req.query.$top === '7' ? page([{ id: 'N2', type: 'POD_MATCHED', sentAt: '2026-04-06T07:45:00.000Z', payload: { outletId: 'OUTT01' } }, { id: 'N1', type: 'SIGNAL_LOST', sentAt: '2026-04-06T07:30:00.000Z', payload: { vehicleId: 'VEHT1' } }])
                   : page([]));
 
   it('greets the dispatcher and shows delivered, on-time, trips, exceptions, depots and the timeline', async () => {
@@ -581,6 +581,30 @@ describe('DSP-40 Agent proposal in draft', () => {
     await waitFor(() => expect(router.push).toHaveBeenCalledWith('/plan/dsp-02-plan-board'));
     expect(posts(view.calls)).toEqual([expect.objectContaining({ path: "AgentRuns('run-9')/Lodestar.Resume", body: { decision: 'edit', edits, comment: 'Move ORDT2 to VEHT2' } })]);
     expect(JSON.parse(window.sessionStorage.getItem('lodestar.ask.run-9')!)[0].a.proposal).toBeNull();
+  });
+
+  it('on an approved (live) plan the proposal becomes the next version as a new draft run, which this tab follows to approval', async () => {
+    seed();
+    const live = { ...agentRun, status: 'APPROVED', planId: 'PLT-2026-04-07-v1' };
+    const v2 = { ...agentRun, id: 'run-10', detail: { ...agentRun.detail, plan: { ...agentRun.detail.plan, version: 2 } } };
+    const view = renderLive(<ScreenShell board="P2" nav={links} live><Proposal /></ScreenShell>, {
+      handler: handler(req => (req.path === "AgentRuns('run-9')" ? live
+        : req.path === 'Plans' && String(req.query.$filter).includes("id eq 'PLT-2026-04-07-v1'") ? page([{ id: 'PLT-2026-04-07-v1', version: 1, status: 'PUBLISHED' }])
+          : req.path === "AgentRuns('run-10')" ? v2 : req.method === 'POST' ? v2 : undefined)),
+    });
+    const proposal = await screen.findByTestId('proposal');
+    expect(await screen.findByText('approved · live')).toBeInTheDocument();
+    expect(screen.getByText(/Plan by planning agent/)).toBeInTheDocument();
+    expect(proposal).toHaveTextContent('Draft v2 · not live');
+    expect(proposal).toHaveTextContent('1 change to the live plan, as a new draft');
+    // reviewing the draft's deferrals is not the next step on a live plan
+    const review = screen.getByRole('button', { name: /Review deferrals/ });
+    expect(review).not.toHaveClass('d-btn--primary');
+    expect(review).toHaveTextContent(/^Review deferrals$/);
+    fireEvent.click(screen.getByTestId('apply-proposal'));
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith('/plan/dsp-02-plan-board'));
+    expect(posts(view.calls)).toEqual([expect.objectContaining({ path: "AgentRuns('run-9')/Lodestar.Resume", body: { decision: 'edit', edits, comment: 'Move ORDT2 to VEHT2' } })]);
+    expect(window.sessionStorage.getItem('lodestar.agentRun')).toBe('run-10');
   });
 
   it('“Dismiss” drops the proposal without calling the API', async () => {

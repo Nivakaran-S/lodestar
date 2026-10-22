@@ -44,7 +44,9 @@ export function createRealtime(opts: RealtimeOptions): RealtimeHub {
       opts.getToken().then(token => cb({ token: token ?? '' }), () => cb({ token: '' }));
     },
     withCredentials: false,
-    reconnectionDelayMax: 15_000,
+    // fail a stuck handshake fast and retry soon: socket.io's 20 s default plus 15 s backoff left DSP-04 on "Reconnecting" ~30 s
+    timeout: 8_000,
+    reconnectionDelayMax: 5_000,
   });
 
   const dispatch = (event: string, payload: unknown) => {

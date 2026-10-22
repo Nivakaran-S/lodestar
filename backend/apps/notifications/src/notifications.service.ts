@@ -3,6 +3,7 @@ import { PrismaService } from '@lodestar/prisma';
 import { Notification, NotificationChannel, OrderStatus, Prisma } from '@prisma/client';
 import { canonicalRoom, NotificationsGateway } from './notifications.gateway';
 import { SmsService } from './sms';
+import { REEFER_MAX_C } from '@lodestar/platform';
 
 export interface SendParams {
   recipientId: string;
@@ -12,6 +13,39 @@ export interface SendParams {
   depot?: string;
   outletId?: string;
   creditNoteId?: string;
+}
+
+/** A reefer reading in the payload above its limit (payload.limitC, else REEFER_MAX_C). */
+function tooWarm(p: Record<string, any>): boolean {
+  if (p.tempC === null || p.tempC === undefined || p.tempC === '') return false;
+  const t = Number(p.tempC);
+  const limit = p.limitC !== null && p.limitC !== undefined && Number.isFinite(Number(p.limitC)) ? Number(p.limitC) : REEFER_MAX_C;
+  return Number.isFinite(t) && t > limit;
+}
+
+/**
+ * Whether a driver's report (DRIVER_REPORT) is information or something dispatch must act on. A passed pre-trip
+ * check, a reefer reading within the limit and a delivery on the store code are information: the desk's exceptions
+ * lists (DSP-04, DSP-08, DSP-13) leave them out. A failed check (payload.ok false, an item not OK, or a reefer
+ * reading above the limit), a problem and a delay are alerts. Other types carry no severity (undefined).
+ * Stored on the notice as payload.severity, unless the sender set one.
+ */
+export function noticeSeverity(type: string, payload: unknown): 'info' | 'alert' | undefined {
+  if (type !== 'DRIVER_REPORT') return undefined;
+  const p = (payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {}) as Record<string, any>;
+  if (p.severity === 'info' || p.severity === 'alert') return p.severity;
+  switch (String(p.report ?? '').toUpperCase()) {
+    case 'VEHICLE_CHECK': {
+      const itemFailed = Array.isArray(p.items) && p.items.some((i: any) => i && typeof i === 'object' && i.ok === false);
+      return p.ok === false || itemFailed || tooWarm(p) ? 'alert' : 'info';
+    }
+    case 'REEFER_TEMP':
+      return tooWarm(p) ? 'alert' : 'info';
+    case 'STORE_CODE':
+      return 'info';
+    default:
+      return 'alert';
+  }
 }
 
 /**
@@ -33,13 +67,15 @@ export class NotificationsService {
   }
 
   async send(params: SendParams) {
+    const severity = noticeSeverity(params.type, params.payload);
+    const payload = severity ? { ...(params.payload ?? {}), severity } : (params.payload ?? {});
     const notif = await this.prisma.notification.create({
       data: {
         recipientId: params.recipientId,
         tripId: params.tripId,
         type: params.type,
         channel: NotificationChannel.WEBSOCKET,
-        payload: (params.payload ?? {}) as Prisma.InputJsonValue,
+        payload: payload as Prisma.InputJsonValue,
       },
     });
     const sent = await this.sendSms(notif);

@@ -4,9 +4,9 @@
 // exceptions list, and realtime: the screen joins the trip:<id> rooms, so eta_update, signal_lost/back and
 // notifications refresh it as they happen (plus a 30 s safety poll). A signal loss, vehicle fault or sync conflict
 // opens its P5 screen (DSP-A1, DSP-B1, DSP-A2). The legend opens DSP-15, the late-risk explainer.
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { colomboDay, useFocusId } from '@/lib/workday';
+import { colomboDay, depotFilter, useFocusId } from '@/lib/workday';
 import { PlanSide } from '@/components/live/chrome';
 import { Ic } from '@/components/live/icons';
 import { p5Link, usePlanScope, useExceptions, type ExceptionItem, runStamp } from '@/components/live/plan-data';
@@ -15,8 +15,22 @@ import { Empty, ErrorBanner, Skeleton } from '@/components/live/states';
 import { BRAND_LETTER, fmtClock, fmtDay, pct } from '@/lib/format';
 import { usePlanningRules } from '@/components/live/planning-rules';
 import { useAction, useQuery, useRealtimeRooms, useRealtimeStatus } from '@/lib/odata/hooks';
-import type { Order, Trip, TripStop } from '@/lib/odata/types';
+import type { Order, Outlet, Trip, TripStop } from '@/lib/odata/types';
 import { useDepots } from '@/components/live/depots';
+import OpsMap from '@/components/live/ops-map';
+
+/** A callback ref and the element's outer height plus its 12 px inset (0 while unmounted or without ResizeObserver). */
+function useHeight<T extends HTMLElement>() {
+  const [el, setEl] = useState<T | null>(null);
+  const [h, setH] = useState(0);
+  useEffect(() => {
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => setH(Math.round(el.getBoundingClientRect().height + 24)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [el]);
+  return [setEl, el ? h : 0] as const;
+}
 
 /** At or over the planning service's late-risk alert level (PlanningRules.lateRisk.alertPct); unknown level = no. */
 const atRisk = (p: number, risk: number | undefined) => risk !== undefined && p >= risk;
@@ -106,7 +120,7 @@ function Thread({ order, stop, trip }: { order?: Order; stop?: TripStop; trip: T
 
 export default function LiveDsp04LiveOperations() {
   const RISK = usePlanningRules().data?.lateRisk.alertPct;
-  const { name: depotName } = useDepots();
+  const { name: depotName, get: depotRow } = useDepots();
   const router = useRouter();
   const [, setFocusTrip] = useFocusId('trip');
   const [, setFocusVehicle] = useFocusId('vehicle');
@@ -129,6 +143,14 @@ export default function LiveDsp04LiveOperations() {
     refreshOn: ['eta_update', 'notification', 'plan_published', 'order_created'], pollMs: 30_000,
   });
   const exceptions = useExceptions(runDate, ordersFilter, active);
+  // outlet coordinates and districts for the map (many have none: the map then places them by district)
+  const hasTrips = !!trips.data?.length;
+  const outlets = useQuery<Outlet[]>(hasTrips ? `ops-outlets:${active.join(',')}` : null, c =>
+    c.all<Outlet>('Outlets', { filter: depotFilter('depot', active), select: 'id,name,district,lat,lng' }));
+  const outletById = useMemo(() => new Map((outlets.data ?? []).map(o => [o.id, o])), [outlets.data]);
+  const offlineTrips = useMemo(() => new Set((exceptions.data ?? []).filter(x => x.tone === 'off' && x.tripId).map(x => x.tripId!)), [exceptions.data]);
+  const depotOf = useCallback((code: string) => depotRow(code), [depotRow]);
+  const [drawerRef, drawerH] = useHeight<HTMLDivElement>();
   const markRead = useAction<string, unknown>((c, id) => c.action('Notifications', id, 'MarkRead'), { onSuccess: () => void exceptions.refresh() });
 
   const all = useMemo(() => trips.data ?? [], [trips.data]);
@@ -157,7 +179,7 @@ export default function LiveDsp04LiveOperations() {
                 {active.length > 1 ? 'Both depots' : depotName(active[0])}
                 <span className="m-sep" />
                 <span className={`m-tag ${live === 'connected' ? 'm-tag--ok' : 'm-tag--warn'}`} data-testid="live-status">
-                  <span className="dot" />{runDate && runDate < colomboDay() ? 'Past run' : live === 'connected' ? 'Live' : 'Reconnecting'} · updated {fmtClock(new Date())}
+                  <span className="dot" />{runDate && runDate < colomboDay() ? 'Past run' : live === 'connected' ? 'Live' : live === 'offline' ? 'Reconnecting' : 'Connecting'} · updated {fmtClock(new Date())}
                 </span>
               </div>
               <div className="d-h1" style={{ fontSize: '28px' }}>
@@ -218,13 +240,16 @@ export default function LiveDsp04LiveOperations() {
               ))}
             </div>
             <div className="x-map">
+              {trips.data && (
+                <OpsMap trips={shown} depotRow={depotOf} outlets={outletById} selectedId={selected?.id} onSelect={setSel} risk={RISK} offline={offlineTrips} bottomInset={selected ? drawerH : 0} />
+              )}
               <div className="x-maplegend" style={{ top: '14px', bottom: 'auto' }} data-lk="L162">
                 <span><i />{"Live position"}</span>
                 <span><i className="amber" />{`Late risk ${RISK ?? '…'}% or more`}</span>
                 <span><i className="dash" />{"Predicted, no signal"}</span>
               </div>
               {selected && (
-                <div className="x-drawer" data-testid="route-drawer">
+                <div className="x-drawer" data-testid="route-drawer" ref={drawerRef}>
                   <div className="hstack" style={{ gap: '10px' }}>
                     <span className="x-veh__ic"><Ic n="van" /></span>
                     <span className="id fw8" style={{ fontSize: '15px' }}>{selected.vehicleId}</span>

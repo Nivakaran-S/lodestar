@@ -58,6 +58,10 @@ export const ALERT_TYPES = new Set([
 
 export type AlertTone = 'late' | 'signal' | 'done';
 
+/** An alert type, unless the server marked it information only (a passed pre-trip check: payload.severity 'info'). */
+export const isAlert = (n: Pick<Notification, 'type' | 'payload'>) =>
+  ALERT_TYPES.has(n.type) && ((n.payload ?? {}) as Payload).severity !== 'info';
+
 export type AlertRow = {
   id: string;
   tone: AlertTone;
@@ -110,7 +114,7 @@ function fromNotification(n: Notification, trips: Trip[]): AlertRow {
       : nice(n.type));
   const meta = [vehicle && !title.includes(vehicle) ? vehicle : undefined, text(p, 'location'), text(p, 'note'), text(p, 'reason')].filter(Boolean).join(' · ');
   const code = text(p, 'orderId') ?? text(p, 'outletId');
-  const tone: AlertTone = /BLACKOUT|SIGNAL_LOST/.test(n.type) ? 'signal' : ALERT_TYPES.has(n.type) ? 'late' : 'done';
+  const tone: AlertTone = /BLACKOUT|SIGNAL_LOST/.test(n.type) ? 'signal' : isAlert(n) ? 'late' : 'done';
   return {
     id: `n:${n.id}`,
     tone,
@@ -118,7 +122,7 @@ function fromNotification(n: Notification, trips: Trip[]): AlertRow {
     meta: meta || (n.readAt ? `Read ${hm(n.readAt)}` : nice(n.type)),
     code,
     at: n.sentAt,
-    needsYou: ALERT_TYPES.has(n.type) && !n.readAt,
+    needsYou: isAlert(n) && !n.readAt,
     plan: text(p, 'planId'),
     vehicle,
   };

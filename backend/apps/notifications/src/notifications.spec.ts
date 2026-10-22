@@ -3,7 +3,7 @@ import { depotDelegate } from '../../../libs/odata/test/depots';
 import { DevicePostureService, JwtVerifier, Principal } from '@lodestar/security';
 import { personas, principal } from '../../../libs/security/test/principals';
 import { canonicalRoom, NotificationsGateway } from './notifications.gateway';
-import { NotificationsService } from './notifications.service';
+import { noticeSeverity, NotificationsService } from './notifications.service';
 import { NotificationsSet } from './notifications.set';
 
 interface FindUniqueDelegate {
@@ -300,6 +300,33 @@ describe('NotificationsService', () => {
     verify(gateway.dispatcherAlert('KANDY', 'REEFER_FAIL', deepEqual({ t: 9 }))).once();
   });
 
+  describe('driver reports carry a severity: only failures are alerts (DSP-04, DSP-08, DSP-13)', () => {
+    it.each([
+      [{ report: 'VEHICLE_CHECK', ok: true, tempC: 3.5 }, 'info'],
+      [{ report: 'VEHICLE_CHECK', ok: false, tempC: 50 }, 'alert'],
+      [{ report: 'VEHICLE_CHECK', ok: true, items: [{ item: 'Tyres', ok: false }] }, 'alert'],
+      [{ report: 'VEHICLE_CHECK', ok: true, tempC: 9 }, 'alert'],
+      [{ report: 'VEHICLE_CHECK', ok: true, tempC: 5, limitC: 8 }, 'info'],
+      [{ report: 'REEFER_TEMP', tempC: 3 }, 'info'],
+      [{ report: 'STORE_CODE' }, 'info'],
+      [{ report: 'PROBLEM', problem: 'DAMAGED_GOODS' }, 'alert'],
+      [{ report: 'DELAY', minutes: 20 }, 'alert'],
+      [{ report: 'VEHICLE_CHECK', ok: false, severity: 'info' }, 'info'],
+    ])('%j is %s', (payload, severity) => {
+      expect(noticeSeverity('DRIVER_REPORT', payload)).toBe(severity);
+    });
+
+    it('other types have none', () => {
+      expect(noticeSeverity('REEFER_FAIL', { tempC: 9 })).toBeUndefined();
+      expect(noticeSeverity('POD_MATCHED', undefined)).toBeUndefined();
+    });
+
+    it('is stored on the notice', async () => {
+      await service.send({ recipientId: 'nilanthi', type: 'DRIVER_REPORT', tripId: 'T1', payload: { report: 'VEHICLE_CHECK', ok: true } });
+      expect(capture(notification.create).last()[0].data.payload).toEqual({ report: 'VEHICLE_CHECK', ok: true, severity: 'info' });
+    });
+  });
+
   it('markRead stamps readAt', async () => {
     const res: any = await service.markRead('N1');
     expect(res.where).toEqual({ id: 'N1' });
@@ -437,6 +464,14 @@ describe('NotificationsGateway', () => {
         ['room_denied', { room: 'store:OUT106' }],
       ]);
       expect(s.disconnected).toBeUndefined();
+    });
+
+    it('checks the requested trip rooms together, joins them in order, and ignores repeats', async () => {
+      when(verifier.verify('tok')).thenResolve(personas.nilanthi);
+      const s = fakeSocket({ auth: { token: 'tok' }, headers: {}, query: { room: 'trip:T1,trip:T2,trip:T1,trip:T3' } });
+      await gateway.handleConnection(s as any);
+      expect(s.joined).toEqual(['user:nilanthi', 'trip:T1', 'trip:T2', 'trip:T3']);
+      verify(trip.findUnique(anything())).times(3);
     });
 
     it('binds a field token to the device named in the handshake (auth.deviceId, else X-Device-Id)', async () => {
