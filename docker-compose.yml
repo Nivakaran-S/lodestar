@@ -286,8 +286,9 @@ services:
       LLM_ENABLE_FALLBACK: ${LLM_ENABLE_FALLBACK:-true}
       LLM_ENABLE_CACHE: ${LLM_ENABLE_CACHE:-true}
       AGENT_MAX_REPAIR_ATTEMPTS: ${AGENT_MAX_REPAIR_ATTEMPTS:-2}
-      # allocation: exact (the Datathon MILP; kept only when rule-clean and at least as good as greedy) or greedy
-      AGENT_ALLOCATOR: ${AGENT_ALLOCATOR:-exact}
+      # allocation: greedy (default) or exact (the Datathon MILP, opt-in: on live data its conservative window bound
+      # served fewer orders than greedy; see docs/architecture/PLANNER_AGENT.md)
+      AGENT_ALLOCATOR: ${AGENT_ALLOCATOR:-greedy}
       AGENT_ALLOCATION_TIME_LIMIT_S: ${AGENT_ALLOCATION_TIME_LIMIT_S:-30}
       # azure-openai (optional) only phrases explanations and answers; unset → the mock (see .env.example)
       AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}

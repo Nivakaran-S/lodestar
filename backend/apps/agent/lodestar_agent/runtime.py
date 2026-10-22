@@ -66,7 +66,7 @@ class AgentRuntime:
         max_redrafts: int = 3,
         first_departure: str = "03:30",
         router: LLMRouter | None = None,
-        allocator: str = "exact",
+        allocator: str = "greedy",
         allocation_time_limit: float = 30.0,
     ):
         self.model = model
