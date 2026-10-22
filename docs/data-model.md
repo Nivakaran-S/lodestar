@@ -29,6 +29,7 @@ erDiagram
     string depot
     string outletId FK
     string vehicleId
+    string staffId UK
     string phone
     string refreshToken
     bool isActive
