@@ -154,7 +154,8 @@ export class ODataClient {
     const timer = ctrl ? setTimeout(() => ctrl.abort(), this.opts.timeoutMs ?? 20_000) : undefined;
     let res: globalThis.Response;
     try {
-      res = await this.doFetch(this.url(path, o.query), { method, headers, body: body as BodyInit | undefined, signal: ctrl?.signal });
+      // no-store: never revalidate against the browser's HTTP cache (a 304 would bring back a stale $expand)
+      res = await this.doFetch(this.url(path, o.query), { method, headers, body: body as BodyInit | undefined, signal: ctrl?.signal, cache: 'no-store' });
     } catch (e) {
       this.opts.onNetwork?.(false);
       const aborted = (e as Error)?.name === 'AbortError';

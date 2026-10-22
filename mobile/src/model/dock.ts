@@ -96,8 +96,12 @@ export async function markLoading(tripId: string, label?: string) {
   const sub = session.claims?.sub;
   if (!sub) return null;
   await queue.ready();
-  if (loadingQueued(queue.list(), tripId)) return null;
-  return queue.enqueue('TRIP_STATUS', { sub, tripId, ref: tripId, label: `Loading · ${label ?? tripId}`, payload: { tripId, status: 'LOADING' } });
+  // checked and queued as one step: the first tick, the load sheet's effect and a shortfall flag can all ask at once
+  return queue.enqueueUnless(
+    'TRIP_STATUS',
+    { sub, tripId, ref: tripId, label: `Loading · ${label ?? tripId}`, payload: { tripId, status: 'LOADING' } },
+    i => loadingQueued([i], tripId),
+  );
 }
 
 /** A planned trip that already has a load record (flag, pre-cool) is being loaded: tell the server once. */

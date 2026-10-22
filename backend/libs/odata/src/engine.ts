@@ -314,10 +314,16 @@ export class ODataEngine {
     });
     if (!row) throw ODataError.notFound(`${set.options.name}${formatKey(set.type, key)} was not found`);
     const entity = projectEntity(row, plan.projection);
+    // The ETag versions the ROOT entity only (its updatedAt). With $expand the
+    // representation also depends on related rows (a LoadRecord created under
+    // a Trip does not touch Trip.updatedAt), so a root ETag header would let
+    // If-None-Match revalidation answer 304 with a stale expansion. The body
+    // keeps @odata.etag, which is all If-Match on writes needs.
+    const etagHeader = entity['@odata.etag'] && !opts.expand?.length ? { ETag: String(entity['@odata.etag']) } : {};
     return json(
       200,
       { '@odata.context': contextUrl(req.baseUrl, `${set.options.name}${this.selectSuffix(opts)}/$entity`), ...entity },
-      entity['@odata.etag'] ? { ETag: String(entity['@odata.etag']) } : {},
+      etagHeader,
     );
   }
 

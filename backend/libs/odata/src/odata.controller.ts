@@ -75,9 +75,19 @@ export class ODataController {
     }
 
     res.status(result.status);
+    // API answers carry per-user, fast-changing data: never let a browser (or
+    // any shared cache) store them. Without this, a cached body plus Express's
+    // If-None-Match handling served stale reads (a Trip's expanded loadRecord).
+    res.setHeader('Cache-Control', 'no-store');
     for (const [k, v] of Object.entries(result.headers)) res.setHeader(k, v);
-    if (result.body === undefined) res.end();
-    else if (typeof result.body === 'string') res.send(result.body);
-    else res.send(JSON.stringify(result.body));
+    if (result.body === undefined) {
+      res.end();
+      return;
+    }
+    // res.end, not res.send: send() would add Express's own body-hash ETag and turn a matching
+    // If-None-Match into a 304. ETags here are the engine's (entity versions), never Express's.
+    const payload = Buffer.from(typeof result.body === 'string' ? result.body : JSON.stringify(result.body), 'utf8');
+    res.setHeader('Content-Length', String(payload.length));
+    res.end(payload);
   }
 }

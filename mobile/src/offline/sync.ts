@@ -15,7 +15,8 @@
 //                 per stop and SHA-256, so a resend is a duplicate, not a second photo). Once sent, the image is dropped
 //                 from the outbox (only its size stays).
 //   STATUS_CHANGE (driver reports to dispatch) goes in the PushBatch with the other driver events.
-// Outcomes: applied → synced (a server conflict note is kept and shown); 409/412 → conflict;
+// Outcomes: applied → synced (a server conflict note is kept and shown); 409/412 → conflict (except a RELEASE of a
+// trip that has left already, and a non-COMPLETE TRIP_STATUS the trip is past: synced);
 // other 4xx → rejected (shown, the user can discard); network / 5xx / 429 → stays pending.
 import { Store } from '@/lib/store';
 import { key, lit, ODataError, type ODataClient } from '@/lib/odata';
@@ -34,6 +35,8 @@ type PushResult = {
 type Outcome = { status: 'synced'; conflict?: string | null } | { status: 'conflict' | 'rejected'; reason: string } | { status: 'retry'; reason: string; stop: boolean };
 
 const MAX_BATCH = 200;
+/** The trips service's 409 for a release of a trip that has left already ("A ENROUTE trip cannot be released"). */
+const ALREADY_RELEASED = /\b(ENROUTE|COMPLETE) trip cannot be released/i;
 
 export type SyncStatus = { running: boolean; lastRunAt?: string; lastResult?: FlushResult };
 
@@ -181,6 +184,12 @@ export class SyncEngine {
             if (e instanceof ODataError && e.status === 409 && /load record/i.test(e.message) && p.bay) {
               await this.client.create('LoadRecords', { tripId: p.tripId, bay: p.bay }, { idempotencyKey: `${item.id}-lr` });
               await this.client.action(path, body, idem);
+            } else if (e instanceof ODataError && e.status === 409 && ALREADY_RELEASED.test(e.message)) {
+              // The vehicle has left: this write has nothing left to do. A repeat of a release this phone already
+              // sent is quietly done; one released by someone else is done too, with a note to show. Any other 409
+              // (reefer too warm, a trip that cannot leave) stays a conflict.
+              const ownSent = this.queue.list().some(o => o.id !== item.id && o.kind === 'RELEASE' && o.tripId === p.tripId && o.status === 'synced');
+              return { status: 'synced', conflict: ownSent ? null : 'The trip had already been released' };
             } else throw e;
           }
           return { status: 'synced' };

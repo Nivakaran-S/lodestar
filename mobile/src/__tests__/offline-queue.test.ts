@@ -38,6 +38,24 @@ describe('OfflineQueue', () => {
     expect(summarize(queue.list())).toMatchObject({ pending: 1, attention: 0 });
   });
 
+  it('enqueueUnless checks and saves as one step: two callers at the same moment queue one write', async () => {
+    const storage = memoryQueueStorage();
+    // a slow disk: the item reaches the list only after put resolves
+    const put = storage.put.bind(storage);
+    storage.put = async (item: QueueItem) => {
+      await new Promise(r => setTimeout(r, 5));
+      await put(item);
+    };
+    const queue = new OfflineQueue(storage, uuid, clock);
+    await queue.ready();
+    const loading = (label: string) =>
+      queue.enqueueUnless('TRIP_STATUS', { sub: 'u-1', tripId: 'T1', label, payload: { tripId: 'T1', status: 'LOADING' } }, i => i.kind === 'TRIP_STATUS' && i.tripId === 'T1');
+    const [a, b] = await Promise.all([loading('Loading · T1'), loading('Loading · VEH042')]);
+    expect([a, b].filter(Boolean)).toHaveLength(1);
+    expect(queue.list().filter(i => i.kind === 'TRIP_STATUS')).toHaveLength(1);
+    expect(storage.rows.size).toBe(1);
+  });
+
   it('survives a restart; a write left "sending" goes back to pending', async () => {
     const { queue, storage } = await setup();
     const item = await arrival(queue);
@@ -164,10 +182,27 @@ describe('SyncEngine', () => {
     expect(client.create).toHaveBeenCalledWith('LoadRecords', { tripId: 'T1', bay: 'K2' }, expect.anything());
     expect(queue.list()[0].status).toBe('synced');
 
-    const again = await queue.enqueue('RELEASE', { sub: 'u-1', tripId: 'T2', label: 'Release', payload: { tripId: 'T2', sealNumber: 'S-1' } });
-    client.action.mockRejectedValueOnce(new ODataError(409, 'Conflict', 'A ENROUTE trip cannot be released'));
+    // a genuine conflict is never reported as sent
+    const warm = await queue.enqueue('RELEASE', { sub: 'u-1', tripId: 'T2', label: 'Release', payload: { tripId: 'T2', sealNumber: 'S-1', reeferTempC: 9 } });
+    client.action.mockRejectedValueOnce(new ODataError(409, 'Conflict', "The reefer reads 9 °C, above 5 °C: it can't depart"));
     await engine.flush();
-    expect(queue.list().find(i => i.id === again.id)).toMatchObject({ status: 'conflict', conflict: 'A ENROUTE trip cannot be released' });
+    expect(queue.list().find(i => i.id === warm.id)).toMatchObject({ status: 'conflict', conflict: "The reefer reads 9 °C, above 5 °C: it can't depart" });
+  });
+
+  it("a release of a trip that has left already is done: quietly for this phone's own repeat, with a note otherwise", async () => {
+    const { queue, client, engine } = await setup();
+    const first = await queue.enqueue('RELEASE', { sub: 'u-1', tripId: 'T1', label: 'Release', payload: { tripId: 'T1', sealNumber: 'S-9' } });
+    const repeat = await queue.enqueue('RELEASE', { sub: 'u-1', tripId: 'T1', label: 'Release', payload: { tripId: 'T1', sealNumber: 'S-9' } });
+    client.action.mockResolvedValueOnce({}).mockRejectedValueOnce(new ODataError(409, 'Conflict', 'A ENROUTE trip cannot be released'));
+    await engine.flush();
+    expect(queue.list().find(i => i.id === first.id)).toMatchObject({ status: 'synced', conflict: null });
+    expect(queue.list().find(i => i.id === repeat.id)).toMatchObject({ status: 'synced', conflict: null });
+
+    const elsewhere = await queue.enqueue('RELEASE', { sub: 'u-1', tripId: 'T3', label: 'Release', payload: { tripId: 'T3', sealNumber: 'S-2' } });
+    client.action.mockRejectedValueOnce(new ODataError(409, 'Conflict', 'A COMPLETE trip cannot be released'));
+    await engine.flush();
+    expect(queue.list().find(i => i.id === elsewhere.id)).toMatchObject({ status: 'synced', conflict: 'The trip had already been released' });
+    expect(summarize(queue.list()).attention).toBe(1); // shown, not hidden
   });
 
   it('sends the dock starting a trip as Trips SetStatus LOADING; a trip that already moved on is not a conflict', async () => {

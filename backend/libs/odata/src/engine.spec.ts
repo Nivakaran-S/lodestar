@@ -276,6 +276,16 @@ describe('ODataEngine', () => {
       });
     });
 
+    it('sends no ETag header with $expand (the root ETag does not version the expansion), but keeps @odata.etag', async () => {
+      // Regression (2026-10-22): a LoadRecord created under a Trip left Trip.updatedAt alone, so
+      // If-None-Match on Trips('…')?$expand=loadRecord matched and Express answered 304 with the stale body.
+      when(orders.findFirst(anything())).thenResolve({ ...row('A'), lineItems: [{ id: 'L1', name: 'Milk' }] });
+      const res = await engine.handle(req({ path: "/Orders('A')", query: '$expand=lineItems($select=name)' }));
+      expect(res.headers.ETag).toBeUndefined();
+      expect((res.body as any)['@odata.etag']).toBe('W/"1700000000000"');
+      expect((res.body as any).lineItems).toEqual([{ id: 'L1', name: 'Milk' }]);
+    });
+
     it('decodes percent-encoded keys', async () => {
       when(orders.findFirst(anything())).thenResolve(row("O'1"));
       await engine.handle(req({ path: "/Orders(%27O''1%27)", principal: personas.admin }));

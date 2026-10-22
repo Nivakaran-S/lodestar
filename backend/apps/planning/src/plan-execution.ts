@@ -62,6 +62,12 @@ export interface ExecutionResult {
 }
 
 const STARTED: TripStatus[] = [TripStatus.LOADING, TripStatus.ENROUTE, TripStatus.COMPLETE];
+/**
+ * A trip has started once its status says so OR the dock has a load record for it: the field app
+ * flips PLANNED -> LOADING lazily (and tolerates that call failing), so a PLANNED trip can already
+ * carry ticks and shortfall flags. Replacing it would lose them and reuse its id for a fresh trip.
+ */
+const hasStarted = (t: { status: TripStatus; loadRecord?: unknown }): boolean => STARTED.includes(t.status) || !!t.loadRecord;
 const REASONS = new Set<string>(Object.values(DeferralReason));
 
 /** The trips and deferrals stored with a plan; an AUTOPLAN or seeded plan without trips cannot be executed. */
@@ -98,18 +104,18 @@ export async function executePlan(tx: Prisma.TransactionClient, plan: Plan): Pro
   const runDate = toBusinessDate(plan.runDate);
   const day = runDateValue(runDate);
 
-  // 1. The trips of earlier versions for this depot and day: started ones stay, the rest are replaced.
+  // 1. The trips of earlier versions for this depot and day: started ones (status or a load record) stay, the rest are replaced.
   const existing = await tx.trip.findMany({
     where: { depot: plan.depot, runDate: day },
-    select: { id: true, status: true, stops: { select: { orderId: true } } },
+    select: { id: true, status: true, loadRecord: { select: { tripId: true } }, stops: { select: { orderId: true } } },
   });
-  const started = existing.filter(t => STARTED.includes(t.status));
+  const started = existing.filter(hasStarted);
   const locked = new Set(started.flatMap(t => t.stops.map(s => s.orderId)));
-  const replaced = existing.filter(t => !STARTED.includes(t.status)).map(t => t.id);
+  // Replaced trips have no load record by construction (hasStarted), so there is none to delete.
+  const replaced = existing.filter(t => !hasStarted(t)).map(t => t.id);
   if (replaced.length) {
     await tx.notification.updateMany({ where: { tripId: { in: replaced } }, data: { tripId: null } });
     await tx.offlineEvent.updateMany({ where: { tripId: { in: replaced } }, data: { tripId: null } });
-    await tx.loadRecord.deleteMany({ where: { tripId: { in: replaced } } });
     await tx.tripStop.deleteMany({ where: { tripId: { in: replaced } } });
     await tx.trip.deleteMany({ where: { id: { in: replaced } } });
   }

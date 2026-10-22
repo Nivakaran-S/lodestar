@@ -199,16 +199,29 @@ export async function recordShortfall(trip: Pick<Trip, 'id' | 'bay' | 'vehicleId
   });
 }
 
-/** Trips Release (seal and reefer temperature). */
+/** A release of the trip this phone still stands by (waiting, sent, or sent with a note). */
+export const releaseQueued = (items: QueueItem[], tripId: string): boolean =>
+  items.some(i => i.kind === 'RELEASE' && i.tripId === tripId && i.status !== 'rejected' && i.status !== 'conflict');
+
+/**
+ * Trips Release (seal and reefer temperature). Once per trip: a second tap (or the other release screen) while the
+ * first is still being saved or sent resolves to null instead of queueing a duplicate the server would refuse (409).
+ */
 export async function releaseVehicle(trip: Pick<Trip, 'id' | 'bay' | 'vehicleId'>, sealNumber: string, reeferTempC?: number) {
   if (!sealNumber.trim()) throw new Error('Enter the seal number');
-  return queue.enqueue('RELEASE', {
-    sub: sub(),
-    tripId: trip.id,
-    ref: trip.id,
-    label: `Release · ${trip.vehicleId}`,
-    payload: { tripId: trip.id, bay: trip.bay ?? undefined, sealNumber: sealNumber.trim(), ...(reeferTempC !== undefined ? { reeferTempC } : {}) },
-  });
+  const me = sub();
+  await queue.ready();
+  return queue.enqueueUnless(
+    'RELEASE',
+    {
+      sub: me,
+      tripId: trip.id,
+      ref: trip.id,
+      label: `Release · ${trip.vehicleId}`,
+      payload: { tripId: trip.id, bay: trip.bay ?? undefined, sealNumber: sealNumber.trim(), ...(reeferTempC !== undefined ? { reeferTempC } : {}) },
+    },
+    i => i.sub === me && releaseQueued([i], trip.id),
+  );
 }
 
 /** Store receipt count (Orders ConfirmReceipt). */

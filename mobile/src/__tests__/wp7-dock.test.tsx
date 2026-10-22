@@ -92,6 +92,21 @@ describe('Dock (WP7)', () => {
     expect(queue.list().filter(i => i.sub === 'u-ldst' && i.kind === 'TRIP_STATUS')).toHaveLength(1);
   });
 
+  it('screens asking at the same moment queue one LOADING and one RELEASE per trip (2026-10-22 duplicates)', async () => {
+    await signInAs(loader('u-ldst3'));
+    const { markLoading } = require('@/model/dock');
+    const { releaseVehicle } = require('@/model/actions');
+    // the first tick (no label), the load sheet's effect and the shortfall flag (vehicle label), all within ms
+    const marks = await Promise.all([markLoading('T-D'), markLoading('T-D', 'VEH042'), markLoading('T-D', 'VEH042')]);
+    expect(marks.filter(Boolean)).toHaveLength(1);
+    expect(queue.list().filter(i => i.sub === 'u-ldst3' && i.kind === 'TRIP_STATUS' && i.tripId === 'T-D')).toHaveLength(1);
+    // a double tap on Release
+    const t = { id: 'T-D', bay: 'B2', vehicleId: 'VEH042' };
+    const rel = await Promise.all([releaseVehicle(t, 'S-1', 3), releaseVehicle(t, 'S-1', 3)]);
+    expect(rel.filter(Boolean)).toHaveLength(1);
+    expect(queue.list().filter(i => i.sub === 'u-ldst3' && i.kind === 'RELEASE' && i.tripId === 'T-D')).toHaveLength(1);
+  });
+
   it('a trip the server already has as LOADING is not set again when a line is checked', async () => {
     await signInAs(loader('u-ldst2'));
     params.trip = 'T-1';

@@ -54,6 +54,8 @@ export type QueueSummary = {
   lastSyncedAt?: string;
 };
 
+export type EnqueueInput = { sub: string; payload: Record<string, any>; label: string; tripId?: string; ref?: string; savedAt?: string };
+
 const byTime = (a: QueueItem, b: QueueItem) => a.savedAt.localeCompare(b.savedAt) || a.id.localeCompare(b.id);
 const KEEP_SYNCED_MS = 36 * 3_600_000;
 
@@ -87,7 +89,28 @@ export class OfflineQueue {
   }
 
   /** Save a write. Returns the queued item (status pending). */
-  async enqueue(kind: QueueKind, input: { sub: string; payload: Record<string, any>; label: string; tripId?: string; ref?: string; savedAt?: string }): Promise<QueueItem> {
+  enqueue(kind: QueueKind, input: EnqueueInput): Promise<QueueItem> {
+    return this.serial(() => this.add(kind, input));
+  }
+
+  /**
+   * Save a write unless an equivalent one is already in the outbox: `exists` is checked and the item added as one
+   * step, so two screens asking at the same moment (or a double tap) queue it once. Resolves to null when one
+   * is there already.
+   */
+  enqueueUnless(kind: QueueKind, input: EnqueueInput, exists: (i: QueueItem) => boolean): Promise<QueueItem | null> {
+    return this.serial(async () => (this.items.get().some(exists) ? null : this.add(kind, input)));
+  }
+
+  // Enqueues run one after another: storage.put is async, and a check made before it lands would miss the item.
+  private tail: Promise<unknown> = Promise.resolve();
+  private serial<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.tail.then(fn, fn);
+    this.tail = run.catch(() => undefined);
+    return run;
+  }
+
+  private async add(kind: QueueKind, input: EnqueueInput): Promise<QueueItem> {
     const item: QueueItem = {
       id: this.uuid(),
       kind,

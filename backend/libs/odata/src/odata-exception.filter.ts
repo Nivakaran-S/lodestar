@@ -69,6 +69,7 @@ export class ODataExceptionFilter implements ExceptionFilter {
     res.status(err.status);
     res.setHeader('OData-Version', '4.0');
     res.setHeader('Content-Type', 'application/json;odata.metadata=minimal');
+    res.setHeader('Cache-Control', 'no-store');
     if (err.status === 401) res.setHeader('WWW-Authenticate', 'Bearer realm="lodestar", error="invalid_token"');
     res.send(JSON.stringify(err.toJSON()));
   }

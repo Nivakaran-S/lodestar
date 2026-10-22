@@ -17,7 +17,7 @@ function store(seed: { orders: any[]; trips?: any[]; users?: any[]; calendar?: a
     trip: {
       findMany: async ({ where }: any) =>
         db.trips.filter(t => t.depot === where.depot && +t.runDate === +where.runDate)
-          .map(t => ({ id: t.id, status: t.status, stops: db.stops.filter(s => s.tripId === t.id).map(s => ({ orderId: s.orderId })) })),
+          .map(t => ({ id: t.id, status: t.status, loadRecord: t.loadRecord ?? null, stops: db.stops.filter(s => s.tripId === t.id).map(s => ({ orderId: s.orderId })) })),
       deleteMany: async ({ where }: any) => { db.trips = db.trips.filter(t => !ids(where.id).includes(t.id)); },
       create: async ({ data }: any) => {
         if (db.trips.some(t => t.id === data.id)) throw new Error(`duplicate trip ${data.id}`);
@@ -32,7 +32,7 @@ function store(seed: { orders: any[]; trips?: any[]; users?: any[]; calendar?: a
     tripStop: { deleteMany: async ({ where }: any) => { db.stops = db.stops.filter(s => !ids(where.tripId).includes(s.tripId)); } },
     notification: { updateMany: async () => ({ count: 0 }) },
     offlineEvent: { updateMany: async () => ({ count: 0 }) },
-    loadRecord: { deleteMany: async () => ({ count: 0 }) },
+    loadRecord: { deleteMany: async () => { throw new Error('a load record must never be deleted by re-planning'); } },
     user: { findMany: async ({ where }: any) => db.users.filter(u => u.role === where.role && ids(where.vehicleId).includes(u.vehicleId)) },
     order: {
       findMany: async ({ where }: any) =>
@@ -141,6 +141,26 @@ describe('executePlan', () => {
     expect(db.stops.filter(s => s.tripId === 'TRP-VEH058-20260407-1').map(s => s.orderId)).toEqual(['O2']);
     expect(db.deferrals).toHaveLength(0);
     expect(x.locked).toEqual(['O1']);
+  });
+
+  it('treats a PLANNED trip that already has a load record (flags, ticks) as started: kept, its orders locked', async () => {
+    // The field app flips PLANNED -> LOADING lazily and tolerates that failing, so the dock's work can sit on a PLANNED trip.
+    const flagged = {
+      id: 'TRP-VEH057-20260407-1', depot: 'KANDY', runDate: RUN, status: 'PLANNED', planVersion: 1,
+      loadRecord: { tripId: 'TRP-VEH057-20260407-1', shortfalls: [{ orderId: 'O1', short: 2 }] },
+      stops: [{ orderId: 'O1', outletId: 'OUT106', stopSeq: 1 }],
+    };
+    const { db, tx } = store({ orders: ORDERS, users: [RUWAN], calendar: CALENDAR, trips: [flagged] });
+    const x = await executePlan(tx, plan(2, [trip('VEH057', 1, '03:30', [['O1', 'OUT106', '06:40'], ['O2', 'OUT108', '07:10']])]));
+    expect(db.trips.map(t => [t.id, t.status, t.planVersion])).toEqual([
+      ['TRP-VEH057-20260407-1', 'PLANNED', 1],
+      ['TRP-VEH057-20260407-2', 'PLANNED', 2],
+    ]);
+    expect(db.trips[0].loadRecord).toBe(flagged.loadRecord);
+    expect(db.stops.filter(s => s.tripId === 'TRP-VEH057-20260407-1').map(s => s.orderId)).toEqual(['O1']);
+    expect(db.stops.filter(s => s.tripId === 'TRP-VEH057-20260407-2').map(s => s.orderId)).toEqual(['O2']);
+    expect(x.locked).toEqual(['O1']);
+    expect(x.supersededTrips).toBe(0);
   });
 
   it("gives a vehicle's new trip the next number when its trip of that number has left", async () => {
