@@ -63,8 +63,11 @@ export async function bayQueue(c: C, depot: string, today: string): Promise<BayQ
 export type LoadSheet = { trip: Trip; stops: TripStop[]; lines: OrderLineItem[]; loadRecord: LoadRecord | null };
 
 export async function loadSheet(c: C, tripId: string): Promise<LoadSheet> {
-  const trip = await c.get<Trip>('Trips', tripId, { expand: 'vehicle,driver,loadRecord' });
-  const stops = await c.all<TripStop>('TripStops', { filter: `tripId eq ${lit(tripId)}`, expand: STOP_EXPAND, orderby: 'stopSeq' });
+  // the trip and its stops don't depend on each other: one round trip less on a slow link
+  const [trip, stops] = await Promise.all([
+    c.get<Trip>('Trips', tripId, { expand: 'vehicle,driver,loadRecord' }),
+    c.all<TripStop>('TripStops', { filter: `tripId eq ${lit(tripId)}`, expand: STOP_EXPAND, orderby: 'stopSeq' }),
+  ]);
   const lines = await orderLines(c, stops.map(s => s.orderId));
   return { trip, stops, lines, loadRecord: trip.loadRecord ?? null };
 }

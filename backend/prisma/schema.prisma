@@ -295,6 +295,8 @@ model Order {
   deferralLog DeferralLog?
   lineItems   OrderLineItem[]
 
+  @@index([outletId, runDate])
+  @@index([runDate])
   @@schema("orders")
 }
 
@@ -308,6 +310,7 @@ model OrderLineItem {
   tempClass TempClass
   updatedAt DateTime  @default(now()) @updatedAt
 
+  @@index([orderId])
   @@schema("orders")
 }
 
@@ -342,6 +345,8 @@ model Trip {
   notifications Notification[]
   offlineEvents OfflineEvent[]
 
+  @@index([depot, runDate])
+  @@index([planId])
   @@schema("trips")
 }
 
@@ -369,6 +374,7 @@ model TripStop {
   pod       POD?
   podPhotos PodPhoto[]
 
+  @@index([tripId, stopSeq])
   @@schema("trips")
 }
 
