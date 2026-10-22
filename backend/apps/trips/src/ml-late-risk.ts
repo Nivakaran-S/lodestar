@@ -23,7 +23,7 @@ export async function modelLateRiskPct(prisma: PrismaService, ml: MlClient, stop
       stops: {
         orderBy: { stopSeq: 'asc' },
         select: {
-          id: true, etaPlan: true,
+          id: true, etaPlan: true, etaModel: true,
           order: { select: { brand: true, tempClass: true, units: true, kg: true, m3: true, orderedAt: true, deferredYesterday: true } },
           outlet: { select: { id: true, brand: true, district: true, dockType: true, parking: true, mallWindow: true, windowOpen: true, windowClose: true } },
         },
@@ -39,8 +39,11 @@ export async function modelLateRiskPct(prisma: PrismaService, ml: MlClient, stop
   const allowance = (brand: string, dock: string) => allowances.find((a) => a.brand === brand && a.dockType === dock)?.minutes ?? DEFAULT_SERVICE_MIN;
   const runDate = toBusinessDate(trip.runDate);
   let depart = businessMinutesOfDay(trip.departTime);
+  // a van that left after its plan had it at the first stop (a late release moved the stored model ETAs by the
+  // delay): the planned legs start from the actual departure, so the schedule scored is the moved one
+  const leftLate = new Date(trip.departTime).getTime() >= new Date(trip.stops[0].etaPlan!).getTime();
   const rows: MlStop[] = trip.stops.map((s, i) => {
-    const arrive = businessMinutesOfDay(s.etaPlan!);
+    const arrive = businessMinutesOfDay(leftLate && s.etaModel ? s.etaModel : s.etaPlan!);
     const svc = allowance(s.outlet.brand, s.outlet.dockType);
     const row: MlStop = {
       stopId: s.id, routeId: trip.id, seq: i, date: runDate,

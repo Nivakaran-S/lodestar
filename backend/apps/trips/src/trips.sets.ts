@@ -3,6 +3,33 @@ import { PrismaService } from '@lodestar/prisma';
 import { assertDepotCode, EntitySet, ODataAction, ODataEntitySet, ODataError, ODataFunction, OperationContext, WriteContext } from '@lodestar/odata';
 import { canAccessDepot, HUMAN_ROLES, isPrivileged, Roles } from '@lodestar/security';
 import { TripsService, VEHICLE_FAULTS, type VehicleFault } from './trips.service';
+import { liveTripEtas, overlayStop, overlayTrip, withKeys } from './live-eta';
+
+/** The clock live ETAs are read against (a seam for tests). */
+export const etaClock = { now: () => new Date() };
+
+/**
+ * Trips and their stops read with live ETAs: a trip still at the dock past its departure, or en route without a
+ * stop reached, shows the times of its real departure (live-eta.ts), not the plan's. Filters and sorting still
+ * run on the stored times.
+ */
+async function liveTrips<T extends Record<string, any>>(prisma: any, rows: T[]): Promise<T[]> {
+  const live = await liveTripEtas(prisma, rows.map((r) => r?.id), etaClock.now());
+  if (live.size) for (const r of rows) overlayTrip(r, live.get(r?.id));
+  return rows;
+}
+
+async function liveStops<T extends Record<string, any>>(prisma: any, rows: T[]): Promise<T[]> {
+  const live = await liveTripEtas(prisma, rows.map((r) => r?.tripId), etaClock.now());
+  if (!live.size) return rows;
+  for (const r of rows) {
+    const eta = live.get(r?.tripId);
+    if (!eta) continue;
+    overlayStop(r, eta.stops.get(r.id));
+    if (r.trip && typeof r.trip === 'object') overlayTrip(r.trip, eta);
+  }
+  return rows;
+}
 
 const tripDepot = (depots: string[]) => ({ depot: { in: depots } });
 const tripVehicle = (vehicleId: string) => ({ vehicleId });
@@ -34,6 +61,16 @@ export class TripsSet extends ODataEntitySet {
     private readonly trips: TripsService,
   ) {
     super(prisma);
+  }
+
+  async findMany(args: { where?: any; select?: any; orderBy?: any; skip?: number; take?: number }) {
+    const rows = await super.findMany({ ...args, select: withKeys(args.select, [], ['stops']) });
+    return liveTrips(this.prisma, rows ?? []);
+  }
+
+  async findFirst(args: { where?: any; select?: any }) {
+    const row = await super.findFirst({ ...args, select: withKeys(args.select, [], ['stops']) });
+    return row ? (await liveTrips(this.prisma, [row]))[0] : row;
   }
 
   /** POST Trips('…')/Lodestar.SetStatus {status, departTime?} */
@@ -116,6 +153,16 @@ export class TripStopsSet extends ODataEntitySet {
     private readonly trips: TripsService,
   ) {
     super(prisma);
+  }
+
+  async findMany(args: { where?: any; select?: any; orderBy?: any; skip?: number; take?: number }) {
+    const rows = await super.findMany({ ...args, select: withKeys(args.select, ['tripId'], ['trip']) });
+    return liveStops(this.prisma, rows ?? []);
+  }
+
+  async findFirst(args: { where?: any; select?: any }) {
+    const row = await super.findFirst({ ...args, select: withKeys(args.select, ['tripId'], ['trip']) });
+    return row ? (await liveStops(this.prisma, [row]))[0] : row;
   }
 
   /** POST TripStops('…')/Lodestar.Arrive {time?} */

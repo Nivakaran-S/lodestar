@@ -31,6 +31,12 @@ const PILL: Record<string, [string, string]> = {
 const STEPS = ['RECEIVED', 'PLANNED', 'LOADED', 'ENROUTE', 'DELIVERED'];
 /** Orders('…')/Lodestar.ConfirmReceipt accepts these (backend RECEIVABLE_STATUSES). */
 const RECEIVABLE = ['LOADED', 'ENROUTE', 'DELIVERED', 'EXCEPTION'];
+/** The van to lead with when a store has several the same day: the one moving first. */
+const MOVING: Record<string, number> = { ENROUTE: 0, LOADING: 1, PLANNED: 2 };
+export function movingRank(s: Pick<TripStop, 'status'> & { trip?: Pick<Trip, 'status'> | null }): number {
+  return MOVING[s.trip?.status ?? ''] ?? (s.status === 'ENROUTE' ? 0 : s.status === 'LOADED' ? 1 : 2);
+}
+const tripLabel = (status?: string | null) => (status === 'ENROUTE' ? 'On the way' : status === 'LOADING' ? 'Loading' : status === 'COMPLETE' ? 'Delivered' : 'Planned');
 /** SM-18 "What's wrong?" */
 const ISSUES = ['Short', 'Damaged', 'Temperature', 'Wrong item'] as const;
 
@@ -197,12 +203,16 @@ export default function LiveSm02Deliveries() {
   const todayIso = colomboDay();
   const runDay = (s: TripStop) => (s.trip?.runDate ? String(s.trip.runDate).slice(0, 10) : s.etaPlan ? colomboDay(new Date(s.etaPlan)) : '');
   const open = sorted.filter(s => s.status !== 'DELIVERED' && runDay(s) >= todayIso);
-  const current = open[0] ?? sorted[sorted.length - 1];
+  // of the first day still to come, the van that is moving leads (en route, then loading, then planned)
+  const firstDay = open.length ? runDay(open[0]) : '';
+  const current = [...open.filter(s => runDay(s) === firstDay)].sort((a, b) => movingRank(a) - movingRank(b))[0] ?? sorted[sorted.length - 1];
   const currentDay = current ? runDay(current) : '';
   const heading = !current || current.status === 'DELIVERED' || currentDay < todayIso ? 'Latest delivery' : currentDay === todayIso ? "Today's delivery" : 'Next delivery';
   // a past run that was never closed: its ETA, departure and late risk are history, not a live forecast
   const stale = !!current && current.status !== 'DELIVERED' && currentDay < todayIso;
-  const sameRun = current ? sorted.filter(s => s.tripId === current.tripId && s.outletId === current.outletId) : [];
+  // every order of that day for the outlet, on any van: a store with a chilled and a dry van sees both
+  const sameDay = current ? sorted.filter(s => s.outletId === current.outletId && runDay(s) === currentDay && s.status !== 'CANCELLED') : [];
+  const others = [...new Map(sameDay.filter(s => s.tripId !== current?.tripId).map(s => [s.tripId, s])).values()];
   // The receipt to count: the latest delivery that is in and not counted yet (a later run may already be planned),
   // else the receipt of the latest delivery that is in (confirmed).
   const arrived = sorted.filter(s => s.status === 'DELIVERED' || !!s.arrivalActual);
@@ -213,13 +223,15 @@ export default function LiveSm02Deliveries() {
   const order = current?.order;
   const risk = current?.lateRiskPct ?? null;
   const o = outlet.data;
-  const units = sameRun.reduce((s, x) => s + (x.order?.units ?? 0), 0);
+  const units = sameDay.reduce((s, x) => s + (x.order?.units ?? 0), 0);
   const depot = o?.depot ?? trip?.depot;
   const hub = depot ? depotName(depot) : 'the hub';
-  const vans = new Set(sameRun.map(s => s.tripId)).size;
+  const vans = new Set(sameDay.map(s => s.tripId)).size;
   // the next run still open for orders: tomorrow's until its 4:00 PM cut-off today (Colombo), then the next
   // operating day; kept current as the clock passes the cut-off
   const next = useNextRun();
+  // still at the dock after its planned departure: the plan's time is history (the ETAs read from leaving now)
+  const departOverdue = !!trip?.departTime && (trip.status === 'PLANNED' || trip.status === 'LOADING') && new Date(trip.departTime).getTime() < new Date(next.now).getTime();
   const nextRun = next.runDate;
   const closesOn = addDays(nextRun, -1);
   const today = colomboDay(new Date(next.now));
@@ -234,7 +246,7 @@ export default function LiveSm02Deliveries() {
             <div className="d-head__txt">
               <div className="d-eyebrow">
                 {current ? fmtRunDate(trip?.runDate ?? current.etaPlan) : 'No delivery yet'}
-                <span className="m-sep" />{` ${sameRun.length} order${sameRun.length === 1 ? '' : 's'} `}
+                <span className="m-sep" />{` ${sameDay.length} order${sameDay.length === 1 ? '' : 's'} `}
                 {trip && <><span className="m-sep" />{` ${vans} van${vans === 1 ? '' : 's'} `}</>}
                 {current && <><span className="m-sep" />{stale ? ` from ${hub}, never closed` : ` live from ${hub}`}</>}
               </div>
@@ -259,17 +271,29 @@ export default function LiveSm02Deliveries() {
                         {"ETA "}<b style={{ color: 'var(--text)' }}>~{fmtClock(current.etaModel ?? current.etaPlan)}</b>
                         {current.etaPlan ? ` · plan ${fmtClock(current.etaPlan)}` : ''}
                         {trip ? <> · <span className="id">{trip.vehicleId}</span></> : null}
-                        {trip?.departTime && !stale ? ` · departs ~${fmtClock(trip.departTime)}` : ''}
+                        {trip?.departTime && !stale ? (departOverdue ? ` · was due out ${fmtClock(trip.departTime)}, not left yet` : ` · departs ~${fmtClock(trip.departTime)}`) : ''}
                       </span>
                       {risk !== null && current.status !== 'DELIVERED' && !stale && (
                         <span className={`m-tag ${risk >= LATE_RISK_PCT ? 'm-tag--warn' : 'm-tag--ok'}`}><span className="dot" />{risk >= LATE_RISK_PCT ? 'At risk' : 'On time'} for your {o?.windowClose ?? ''} window · late risk {risk}%</span>
+                      )}
+                      {others.length > 0 && !stale && (
+                        <span className="d-sub" data-testid="other-deliveries">
+                          {`Also ${currentDay === todayIso ? 'today' : 'that day'}: `}
+                          {others.map((s, i) => (
+                            <span key={s.tripId}>{i ? '; ' : ''}<span className="id">{s.trip?.vehicleId ?? s.tripId}</span>
+                              {` · ${s.status === 'DELIVERED' ? 'Delivered' : tripLabel(s.trip?.status)}`}
+                              {s.status !== 'DELIVERED' && (s.etaModel ?? s.etaPlan) ? ` · ETA ~${fmtClock(s.etaModel ?? s.etaPlan)}` : ''}
+                              {` (${sameDay.filter(x => x.tripId === s.tripId).length} order${sameDay.filter(x => x.tripId === s.tripId).length === 1 ? '' : 's'})`}
+                            </span>
+                          ))}
+                        </span>
                       )}
                     </div>
                     <div className="arr__plan">
                       <span className="d-kpi__l" style={{ paddingBottom: '2px' }}>{"Receiving plan"}</span>
                       <div className="plan-i"><span className="plan-i__lead"><Ic n="people" /></span><span><b>Staff at the door</b> from {current.etaModelBandEarly ? fmtClock(current.etaModelBandEarly) : o?.windowOpen}</span></div>
-                      {sameRun.some(s => s.order?.tempClass === 'CHILLED') && (
-                        <div className="plan-i"><span className="plan-i__lead plan-i__lead--cold"><Ic n="snow" /></span><span><b>Chilled first</b>, to the cold room ({sameRun.filter(s => s.order?.tempClass === 'CHILLED').map((s, i) => <span key={s.id}>{i ? ', ' : ''}<span className="id">{s.orderId}</span></span>)})</span></div>
+                      {sameDay.some(s => s.order?.tempClass === 'CHILLED') && (
+                        <div className="plan-i"><span className="plan-i__lead plan-i__lead--cold"><Ic n="snow" /></span><span><b>Chilled first</b>, to the cold room ({sameDay.filter(s => s.order?.tempClass === 'CHILLED').map((s, i) => <span key={s.id}>{i ? ', ' : ''}<span className="id">{s.orderId}</span></span>)})</span></div>
                       )}
                       {o?.accessNote && <div className="plan-i"><span className="plan-i__lead plan-i__lead--plain"><Ic n="van-3" /></span><span>{o.accessNote}</span></div>}
                     </div>
@@ -278,10 +302,11 @@ export default function LiveSm02Deliveries() {
                     {order && <Thread order={order} stop={current} trip={trip} stale={stale} />}
                     <div className="spacer" />
                     <div className="vstack" style={{ gap: '8px' }}>
-                      {sameRun.map(s => (
+                      {sameDay.map(s => (
                         <div key={s.id} className="ord-mini">
                           {s.order?.tempClass === 'CHILLED' ? <span className="m-tag m-tag--cold"><Ic n="snow" />{"Chilled"}</span> : <span className="m-tag"><span className="dot" />{"Dry"}</span>}
                           <span className="id" style={{ color: 'var(--text)' }}>{s.orderId}</span>
+                          {vans > 1 && s.trip?.vehicleId && <span className="t-3">{s.trip.vehicleId}</span>}
                           {isCounted(s.order) && s.order!.unitsReceived! < (s.order!.unitsExpected ?? s.order!.units)
                             ? <span style={{ color: 'var(--st-deferred-fg)', fontWeight: '700' }}>{s.order!.unitsReceived} of {s.order!.unitsExpected ?? s.order!.units}</span>
                             : s.pod && s.pod.unitsDelivered !== s.pod.unitsOrdered
@@ -291,7 +316,7 @@ export default function LiveSm02Deliveries() {
                           {s.pod?.signatureUrl && <PodSignature pod={s.pod} width={56} height={24} />}
                         </div>
                       ))}
-                      <span className="t-3" style={{ fontSize: '12.5px' }}>{units} units in this delivery</span>
+                      <span className="t-3" style={{ fontSize: '12.5px' }}>{vans > 1 ? `${units} units on ${vans} vans today` : `${units} units in this delivery`}</span>
                     </div>
                   </div>
                 </>

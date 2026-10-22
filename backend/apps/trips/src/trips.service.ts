@@ -5,10 +5,11 @@ import { OrderStatus, Prisma, TempClass, TripStatus } from '@prisma/client';
 import { MlClient, REEFER_MAX_C, runDateRange } from '@lodestar/platform';
 import {
   announceStopIssue, CLOSED_STOP_STATUSES, depotDispatchers, NOTIFY, NotifyClient, podExceptionsWithStoreCount, podOutcome, recordArrival, recordDeparture,
-  linkPodPhotos, storeManagers,
+  linkPodPhotos, publishEtaUpdates, storeManagers,
 } from '@lodestar/security';
 import { FleetClient } from './fleet.client';
 import { modelLateRiskPct } from './ml-late-risk';
+import { ETA_STOP_SELECT, etaShiftMs, liveTripEtas, overlayTrip, shiftedStops, shiftTrip, type TripEta } from './live-eta';
 
 /** Stored window [start, end) of a run date (YYYY-MM-DD, or a Date read in Sri Lanka time). */
 export function dayRange(runDate: string | Date) {
@@ -94,32 +95,65 @@ export class TripsService {
   /** Loader: trips of a depot and run date in bay order (bay queue). */
   async getBayQueue(depot: string, runDate: string, scope?: Prisma.TripWhereInput) {
     const { start, end } = dayRange(runDate);
-    return this.prisma.trip.findMany({
+    const trips = await this.prisma.trip.findMany({
       where: { AND: [{ depot, runDate: { gte: start, lt: end } }, scope ?? {}] },
       include: {
         vehicle: true,
         driver: { select: { id: true, name: true } },
-        stops: { select: { stopSeq: true, outletId: true, status: true, etaModel: true } },
+        stops: { select: { id: true, stopSeq: true, outletId: true, status: true, etaModel: true } },
         loadRecord: true,
       },
       orderBy: [{ bay: 'asc' }, { departTime: 'asc' }],
     });
+    // a trip still at the dock past its departure shows the ETAs of leaving now, not of the plan
+    const live = await liveTripEtas(this.prisma, (trips ?? []).map((t) => t.id), new Date());
+    for (const t of trips ?? []) overlayTrip(t, live.get(t.id));
+    return trips;
   }
 
   async updateStatus(id: string, current: TripStatus, status: TripStatus, departTime?: Date) {
     if (current !== status && !NEXT_TRIP_STATUS[current].includes(status)) {
       throw ODataError.conflict(`A ${current} trip cannot move to ${status}`);
     }
+    // leaving the dock: the actual departure (given, else now) replaces the planned one and moves the open stops
+    const departs = status === TripStatus.ENROUTE && current !== TripStatus.ENROUTE;
+    const departedAt = departs ? new Date(departTime ?? Date.now()) : undefined;
+    const delay = departedAt ? await this.departureDelay(this.prisma, id, departedAt) : null;
     const trip = await this.prisma.trip.update({
       where: { id },
       data: {
         status,
-        ...(departTime ? { departTime } : {}),
+        ...(departedAt ? { departTime: departedAt } : departTime ? { departTime } : {}),
+        ...(delay && delay.eta.shiftMs > 0 && delay.eta.returnTime ? { returnTime: delay.eta.returnTime } : {}),
         ...(status === TripStatus.COMPLETE ? { returnTime: new Date() } : {}),
       },
     });
+    if (delay && trip) await this.announceDelay(trip, delay);
     if (status === TripStatus.COMPLETE && current !== TripStatus.COMPLETE) await this.consumeFuel(id);
     return trip;
+  }
+
+  /**
+   * A trip leaving at `departedAt`: its open stops move by the time since the planned departure (and never sit
+   * before the van leaves), each stop's late risk is measured again against its window, and the new times are
+   * stored. Returns the move (with the trip's new return) for the trip update and eta_update, or null.
+   */
+  private async departureDelay(db: Pick<Prisma.TransactionClient, 'trip' | 'tripStop'>, tripId: string, departedAt: Date) {
+    const before = await db.trip.findUnique({
+      where: { id: tripId },
+      select: { id: true, departTime: true, returnTime: true, runDate: true, stops: { select: ETA_STOP_SELECT, orderBy: { stopSeq: 'asc' } } },
+    });
+    if (!before?.stops?.length) return null;
+    const planned = before.departTime ? new Date(before.departTime).getTime() : departedAt.getTime();
+    const eta: TripEta = shiftTrip(before, etaShiftMs(before.stops, departedAt.getTime(), departedAt.getTime() - planned));
+    for (const [stopId, e] of eta.stops) await db.tripStop.update({ where: { id: stopId }, data: e });
+    return { eta, stops: shiftedStops(before, eta) };
+  }
+
+  /** The stores and live ops hear of the stops a late departure moved (eta_update, cause DEPARTURE_DELAY). */
+  private async announceDelay(trip: { id: string; depot: string; vehicleId: string }, delay: { stops: ReturnType<typeof shiftedStops> }) {
+    if (!delay.stops.length) return;
+    await this.progress(() => publishEtaUpdates(this.notify, { id: trip.id, depot: trip.depot, vehicleId: trip.vehicleId }, delay.stops, 'DEPARTURE_DELAY'));
   }
 
   /** A completed trip's fuel counts against its vehicle's weekly quota (recorded by fleet, which owns Vehicle). */
@@ -154,6 +188,8 @@ export class TripsService {
         if (reading > REEFER_MAX_C) throw ODataError.conflict(`The reefer reads ${reading} °C, above ${REEFER_MAX_C} °C: it can't depart`);
       }
       const now = new Date();
+      // left later than planned: the open stops and the return move by the delay before the trip says ENROUTE
+      const delay = await this.departureDelay(tx, tripId, now);
       await tx.loadRecord.update({
         where: { tripId },
         data: { sealNumber, releasedAt: now, ...(reeferTempC !== undefined ? { reeferTempC } : {}) },
@@ -162,18 +198,20 @@ export class TripsService {
       const stops = await tx.tripStop.findMany({ where: open, select: { orderId: true } });
       await tx.tripStop.updateMany({ where: open, data: { status: OrderStatus.ENROUTE } });
       await tx.order.updateMany({ where: { id: { in: stops.map((st) => st.orderId) } }, data: { status: OrderStatus.ENROUTE } });
-      return tx.trip.update({
+      const updated = await tx.trip.update({
         where: { id: tripId },
         data: {
           status: TripStatus.ENROUTE,
           sealNumber,
           departTime: now,
+          ...(delay && delay.eta.shiftMs > 0 && delay.eta.returnTime ? { returnTime: delay.eta.returnTime } : {}),
           ...(reeferTempC !== undefined ? { reeferTempC } : {}),
         },
         include: { stops: { select: { outletId: true } } },
       });
+      return { updated, delay };
     });
-    const { stops, ...trip } = released;
+    const { stops, ...trip } = released.updated;
     const outlets = [...new Set(stops.map((st) => st.outletId))];
     const event = { tripId, vehicleId: trip.vehicleId, depot: trip.depot, bay: trip.bay, departTime: trip.departTime, sealNumber, outlets };
     if (trip.driverId) await this.notify.notice({ recipientId: trip.driverId, type: 'TRIP_RELEASED', tripId, depot: trip.depot, payload: event });
@@ -182,6 +220,7 @@ export class TripsService {
       ...(trip.driverId ? [`driver:${trip.driverId}`] : []),
       ...outlets.map((o) => `store:${o}`),
     ], event);
+    if (released.delay) await this.announceDelay(trip, released.delay);
     return trip;
   }
 

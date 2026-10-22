@@ -46,6 +46,19 @@ describe('modelLateRiskPct (Task 1 model on the trip, UpdateLateRisk)', () => {
     expect(rows[1]).toMatchObject({ routeId: 'T1', date: '2026-10-05', depot: 'PELIYAGODA', deferred: true, monsoon: 1, isPayday: true, roadClass: 'urban', vehicleTemp: 'CHILLED' });
   });
 
+  it('a van released after its plan had it at the first stop is scored on the moved (stored model) ETAs', async () => {
+    const prisma = prismaStub();
+    const base = await prismaStub().trip.findUnique();
+    prisma.trip.findUnique.mockResolvedValue({
+      ...base, departTime: lk('07:24'),
+      stops: [{ ...base.stops[0], etaModel: lk('07:48') }, { ...base.stops[1], etaModel: lk('08:24') }],
+    });
+    const { ml, predictStops } = mlStub(new Map([['S2', { stopId: 'S2', lateProb: 0.9 }]]));
+    expect(await modelLateRiskPct(prisma as any, ml, 'S2')).toBe(90);
+    const [rows] = predictStops.mock.calls[0];
+    expect(rows.map((r) => [r.plannedDepart, r.plannedArrive, r.plannedTravelMin])).toEqual([['07:24', '07:48', 24], ['08:04', '08:24', 20]]);
+  });
+
   it('is null (heuristic) when ML is disabled, fails, or the trip has no planned times', async () => {
     expect(await modelLateRiskPct(prismaStub() as any, mlStub(new Map(), false).ml, 'S1')).toBeNull();
     expect(await modelLateRiskPct(prismaStub() as any, mlStub(null).ml, 'S1')).toBeNull();

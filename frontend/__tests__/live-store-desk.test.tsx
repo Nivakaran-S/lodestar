@@ -312,6 +312,33 @@ describe('SM-02 Deliveries', () => {
     expect(await screen.findByText("Today's delivery")).toBeInTheDocument();
   });
 
+  it('two vans today: the one on the way leads, the planned one is listed too, and both are counted', async () => {
+    const TODAY = '2026-04-06T00:00:00.000Z';
+    const chilled = order('ORDT1', { status: 'ENROUTE', units: 12, tempClass: 'CHILLED', unitsReceived: null, runDate: TODAY });
+    const dry = order('ORDT2', { status: 'PLANNED', units: 30, unitsReceived: null, runDate: TODAY });
+    // the planned dry van has the earlier plan ETA, but it has not left; the chilled van is on the road
+    const planned = stop('STD', dry, { tripId: 'TRD', status: 'PLANNED', etaPlan: '2026-04-06T08:30:00.000Z', etaModel: '2026-04-06T10:00:00.000Z',
+      trip: { id: 'TRD', vehicleId: 'VEH054', status: 'PLANNED', bay: 'K2', runDate: TODAY, departTime: '2026-04-06T07:00:00.000Z' } });
+    const moving = stop('STC', chilled, { tripId: 'TRC', status: 'ENROUTE', etaPlan: '2026-04-06T09:00:00.000Z', etaModel: '2026-04-06T09:10:00.000Z', lateRiskPct: 5,
+      trip: { id: 'TRC', vehicleId: 'VEH042', status: 'ENROUTE', runDate: TODAY, departTime: '2026-04-06T07:55:00.000Z' } });
+    const { unmount } = renderLive(<Deliveries />, { session: SESSIONS.store, handler: req => storeBase(req) ?? (req.path === 'TripStops' ? page([planned, moving]) : page([])) });
+    expect(await screen.findByText("Today's delivery")).toBeInTheDocument();
+    const hero = screen.getByTestId('next-delivery');
+    expect(within(hero).getAllByText(/^ETA/)[0].closest('.d-sub')).toHaveTextContent('ETA ~14:40 · plan 14:30 · VEH042 · departs ~13:25');
+    expect(document.querySelector('.d-head .m-pill')).toHaveClass('m-pill--info'); // the moving van's status, not the planned one's
+    expect(document.querySelector('.d-head .m-pill')).not.toHaveTextContent('Bay K2');
+    expect(screen.getByText(/2 orders/)).toHaveTextContent('2 orders 2 vans');
+    expect(within(hero).getByTestId('other-deliveries')).toHaveTextContent('Also today: VEH054 · Planned · ETA ~15:30 (1 order)');
+    expect(within(hero).getByText('ORDT2')).toBeInTheDocument();
+    expect(within(hero).getByText('42 units on 2 vans today')).toBeInTheDocument();
+    unmount();
+    // only the dry van, still at the dock an hour after its planned departure: that time is not "departs"
+    renderLive(<Deliveries />, { session: SESSIONS.store, handler: req => storeBase(req) ?? (req.path === 'TripStops' ? page([planned]) : page([])) });
+    expect(await screen.findByText(/was due out 12:30, not left yet/)).toBeInTheDocument();
+    expect(screen.queryByText(/departs ~/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('other-deliveries')).not.toBeInTheDocument();
+  });
+
   it('the top bar’s menu button opens the nav in a side drawer; Escape and the backdrop close it', async () => {
     renderLive(<Deliveries />, { session: SESSIONS.store, handler: req => storeBase(req) ?? page([]) });
     const menu = await screen.findByRole('button', { name: 'Open navigation' });
